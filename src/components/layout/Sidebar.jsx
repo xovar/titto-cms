@@ -53,7 +53,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <Package size={18} className="text-white" />
             </div>
             <span className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark tracking-tight">
-              CRM Pro
+              TITTO CRM
             </span>
           </div>
           <button
@@ -122,7 +122,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border-light dark:border-border-dark shrink-0">
           <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-            © 2026 CRM Pro
+            © 2026 TITTO CRM
           </p>
         </div>
       </aside>
