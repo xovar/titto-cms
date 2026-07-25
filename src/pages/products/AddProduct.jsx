@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Image as ImageIcon,
   X,
+  Loader2,
 } from "lucide-react";
 import {
   fetchCategories,
@@ -17,13 +18,14 @@ import {
   fetchColors,
   addProduct,
 } from "../../store/slices/productSlice";
+import axiosInstance from "../../api/axiosInstance";
 
 export default function AddProduct() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { categories, brands, colors, loading } = useSelector(
-    (state) => state.products,
+    (state) => state.products
   );
   const isSubmitting = loading?.products || false;
 
@@ -35,15 +37,15 @@ export default function AddProduct() {
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
 
-  // Initial variant state
+  // Variant & UI Loading State
   const [variants, setVariants] = useState([
     {
       colorId: "",
       images: [],
-      sizes: [{ size: "", stock: 0 }],
+      sizes: [{ size: "", stock: "" }],
     },
   ]);
-
+  const [uploadingVariants, setUploadingVariants] = useState({});
   const [validationError, setValidationError] = useState("");
 
   // Fetch initial data
@@ -53,169 +55,181 @@ export default function AddProduct() {
     dispatch(fetchColors());
   }, [dispatch]);
 
-  // Set default category and brand IDs once fetched
+  // Set default category and brand IDs once data is loaded
   useEffect(() => {
-    if (categories.length > 0 && !categoryId) {
+    if (categories?.length > 0 && !categoryId) {
       const firstCatId = categories[0].id || categories[0]._id;
       if (firstCatId) setCategoryId(firstCatId);
     }
-    if (brands.length > 0 && !brandId) {
+    if (brands?.length > 0 && !brandId) {
       const firstBrandId = brands[0].id || brands[0]._id;
       if (firstBrandId) setBrandId(firstBrandId);
     }
   }, [categories, brands, categoryId, brandId]);
 
-  // Set default color ID for the first variant
+  // Set default color ID for initial variant
   useEffect(() => {
-    if (colors.length > 0 && variants[0].colorId === "") {
+    if (colors?.length > 0 && variants[0]?.colorId === "") {
       const firstColorId = colors[0].id || colors[0]._id;
       if (firstColorId) {
-        setVariants([
+        setVariants((prev) => [
           {
+            ...prev[0],
             colorId: firstColorId,
-            images: [],
-            sizes: [{ size: "", stock: 0 }],
           },
         ]);
       }
     }
   }, [colors]);
 
+  // Handler functions for Variants
   const handleAddVariant = () => {
     const defaultColorId = colors[0]?.id || colors[0]?._id || "";
-    setVariants([
-      ...variants,
+    setVariants((prev) => [
+      ...prev,
       {
         colorId: defaultColorId,
         images: [],
-        sizes: [{ size: "", stock: 0 }],
+        sizes: [{ size: "", stock: "" }],
       },
     ]);
   };
 
   const handleRemoveVariant = (index) => {
     if (variants.length === 1) return;
-    setVariants(variants.filter((_, i) => i !== index));
+    setVariants((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleVariantChange = (varIdx, field, val) => {
-    const updated = [...variants];
-    updated[varIdx][field] = val;
-    setVariants(updated);
+    setVariants((prev) =>
+      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v))
+    );
   };
 
-  // ফ্রন্ট-এন্ড ইমেজ কম্প্রেশন ও আপলোড ফাংশন
-  const handleImageUpload = async (varIdx, e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  // Image Upload Handler
+const handleImageUpload = async (varIdx, e) => {
+  // async কাজের পর e.target হারিয়ে যাওয়া ঠেকাতে আগেই রেফারেন্স সেভ
+  const inputElement = e.target;
+  const files = Array.from(inputElement.files || []);
+  if (files.length === 0) return;
 
-    const options = {
-      maxSizeMB: 0.3,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-    };
+  setUploadingVariants((prev) => ({ ...prev, [varIdx]: true }));
 
-    const formData = new FormData();
+  const options = {
+    maxSizeMB: 0.3,
+    maxWidthOrHeight: 1200,
+    useWebWorker: true,
+  };
 
-    try {
-      // ১. ফাইল কমপ্রেস করা এবং সঠিক নামসহ Blob কে File-এ রূপান্তর
-      for (let file of files) {
-        const compressedBlob = await imageCompression(file, options);
-        const fileName = file.name || `image_${Date.now()}.jpg`;
-        const compressedFile = new File([compressedBlob], fileName, {
-          type: compressedBlob.type,
-        });
+  const formData = new FormData();
 
-        formData.append("images", compressedFile);
-      }
+  try {
+    for (let file of files) {
+      const compressedBlob = await imageCompression(file, options);
+      const fileName = file.name || `image_${Date.now()}.jpg`;
+      const compressedFile = new File([compressedBlob], fileName, {
+        type: compressedBlob.type,
+      });
 
-      // ২. এপিআই কল
-      const response = await axios.post(
-        "https://api.titto.com.bd/api/upload/upload-images",
-        formData
-      );
-
-      // ৩. ব্যাকএন্ডের রেসপন্স অনুযায়ী সঠিক কী (key) ধরা
-      const uploadedUrls =
-        response.data.urls || response.data.imageUrls || response.data.images;
-
-      // ৪. স্টেট আপডেট করা
-      const updatedVariants = [...variants];
-      const currentImages = [...updatedVariants[varIdx].images];
-
-      if (Array.isArray(uploadedUrls)) {
-        uploadedUrls.forEach((url) => {
-          if (!currentImages.includes(url)) {
-            currentImages.push(url);
-          }
-        });
-      }
-
-      updatedVariants[varIdx].images = currentImages;
-      setVariants(updatedVariants);
-      setValidationError(""); // সফলতা দেখালে এরর তুলে দেওয়া
-    } catch (error) {
-      console.error("Image upload failed:", error);
-      const serverMsg =
-        error.response?.data?.message ||
-        "Failed to upload images. Please try again.";
-      setValidationError(serverMsg);
+      formData.append("images", compressedFile);
     }
-  };
 
-  // 💡 আপডেটেড: সার্ভার এবং UI থেকে ইমেজ মুছে ফেলার ফাংশন
+    // axios-এর বদলে axiosInstance ব্যবহার করা হলো (Firebase Token অটো চলে যাবে)
+    // Content-Type undefined করে দিলে ব্রাউজার নিজ থেকে সঠিক boundary-সহ multipart/form-data সেট করবে
+    const response = await axiosInstance.post("/upload/upload-images", formData, {
+      headers: {
+        "Content-Type": undefined,
+      },
+    });
+
+    const uploadedUrls =
+      response.data?.urls || response.data?.imageUrls || response.data?.images || [];
+
+    if (Array.isArray(uploadedUrls) && uploadedUrls.length > 0) {
+      setVariants((prev) =>
+        prev.map((v, i) => {
+          if (i !== varIdx) return v;
+          const uniqueImages = Array.from(new Set([...v.images, ...uploadedUrls]));
+          return { ...v, images: uniqueImages };
+        })
+      );
+      setValidationError("");
+    }
+  } catch (error) {
+    console.error("Image upload failed:", error);
+    const serverMsg =
+      error.response?.data?.message || "Failed to upload images. Please try again.";
+    setValidationError(serverMsg);
+  } finally {
+    setUploadingVariants((prev) => ({ ...prev, [varIdx]: false }));
+    if (inputElement) inputElement.value = ""; // নিরাপদ ইনপুট রিসেট
+  }
+};
+
+  // Image Remove Handler
   const handleRemoveImage = async (varIdx, imgIdx) => {
-    const updated = [...variants];
-    const imageUrlToRemove = updated[varIdx].images[imgIdx];
+    const imageUrlToRemove = variants[varIdx]?.images[imgIdx];
+    if (!imageUrlToRemove) return;
+
+    // Optimistic UI Update
+    setVariants((prev) =>
+      prev.map((v, i) =>
+        i === varIdx
+          ? { ...v, images: v.images.filter((_, idx) => idx !== imgIdx) }
+          : v
+      )
+    );
 
     try {
-      // ১. ব্যাকএন্ডে ডিলিট রিকোয়েস্ট পাঠানো
       await axios.post("https://api.titto.com.bd/api/upload/delete-image", {
         imageUrl: imageUrlToRemove,
       });
-
-      // ২. সফলভাবে ডিলিট হলে UI (স্টেট) থেকে রিমুভ করা
-      updated[varIdx].images = updated[varIdx].images.filter(
-        (_, i) => i !== imgIdx,
-      );
-      setVariants(updated);
       setValidationError("");
     } catch (error) {
       console.error("Failed to delete image from server:", error);
       const serverMsg =
         error.response?.data?.message ||
-        "Failed to delete image from server. Removing from view.";
+        "Failed to delete image from server. Removed locally.";
       setValidationError(serverMsg);
-
-      // কোনো কারণে সার্ভারে এরর দিলেও UI থেকে সরিয়ে দেওয়ার সেফটি ফলব্যাক
-      updated[varIdx].images = updated[varIdx].images.filter(
-        (_, i) => i !== imgIdx,
-      );
-      setVariants(updated);
     }
   };
 
+  // Size and Stock Handlers (Immutable State Mutations)
   const handleAddSize = (varIdx) => {
-    const updated = [...variants];
-    updated[varIdx].sizes.push({ size: "", stock: 0 });
-    setVariants(updated);
+    setVariants((prev) =>
+      prev.map((v, i) =>
+        i === varIdx
+          ? { ...v, sizes: [...v.sizes, { size: "", stock: "" }] }
+          : v
+      )
+    );
   };
 
   const handleRemoveSize = (varIdx, sizeIdx) => {
-    const updated = [...variants];
-    if (updated[varIdx].sizes.length === 1) return;
-    updated[varIdx].sizes = updated[varIdx].sizes.filter(
-      (_, i) => i !== sizeIdx,
+    setVariants((prev) =>
+      prev.map((v, i) => {
+        if (i !== varIdx || v.sizes.length === 1) return v;
+        return {
+          ...v,
+          sizes: v.sizes.filter((_, sIdx) => sIdx !== sizeIdx),
+        };
+      })
     );
-    setVariants(updated);
   };
 
   const handleSizeChange = (varIdx, sizeIdx, field, val) => {
-    const updated = [...variants];
-    updated[varIdx].sizes[sizeIdx][field] = val;
-    setVariants(updated);
+    setVariants((prev) =>
+      prev.map((v, i) => {
+        if (i !== varIdx) return v;
+        const updatedSizes = v.sizes.map((s, sIdx) =>
+          sIdx === sizeIdx ? { ...s, [field]: val } : s
+        );
+        return { ...v, sizes: updatedSizes };
+      })
+    );
   };
 
+  // Submit Handler
   const handleSubmit = (e) => {
     e.preventDefault();
     setValidationError("");
@@ -233,7 +247,7 @@ export default function AddProduct() {
 
       if (v.images.length === 0) {
         return setValidationError(
-          `Please upload at least one image for variant ${i + 1}`,
+          `Please upload at least one image for variant ${i + 1}`
         );
       }
 
@@ -241,12 +255,12 @@ export default function AddProduct() {
         const s = v.sizes[j];
         if (!s.size.trim()) {
           return setValidationError(
-            `Please enter size name for variant ${i + 1}, item ${j + 1}`,
+            `Please enter size name for variant ${i + 1}, item ${j + 1}`
           );
         }
-        if (s.stock < 0) {
+        if (s.stock === "" || parseInt(s.stock) < 0) {
           return setValidationError(
-            `Stock cannot be negative for variant ${i + 1}, item ${j + 1}`,
+            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`
           );
         }
       }
@@ -285,7 +299,7 @@ export default function AddProduct() {
         <div>
           <button
             onClick={() => navigate("/products")}
-            className="flex items-center gap-1 text-xs font-semibold text-accent-brand hover:underline mb-1"
+            className="flex items-center gap-1 text-xs font-semibold text-accent-brand hover:underline mb-1 cursor-pointer"
             type="button"
           >
             <ArrowLeft size={14} /> Back to Products
@@ -439,7 +453,7 @@ export default function AddProduct() {
               <button
                 type="button"
                 onClick={handleAddVariant}
-                className="btn-secondary py-1.5! px-3! text-xs flex items-center gap-1"
+                className="btn-secondary py-1.5! px-3! text-xs flex items-center gap-1 cursor-pointer"
               >
                 <Plus size={14} /> Add Variant
               </button>
@@ -459,7 +473,7 @@ export default function AddProduct() {
                       <button
                         type="button"
                         onClick={() => handleRemoveVariant(varIdx)}
-                        className="text-accent-danger hover:text-red-700 p-1.5 rounded-lg hover:bg-accent-danger/10 transition-colors"
+                        className="text-accent-danger hover:text-red-700 p-1.5 rounded-lg hover:bg-accent-danger/10 transition-colors cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -476,11 +490,7 @@ export default function AddProduct() {
                         <select
                           value={variant.colorId}
                           onChange={(e) =>
-                            handleVariantChange(
-                              varIdx,
-                              "colorId",
-                              e.target.value,
-                            )
+                            handleVariantChange(varIdx, "colorId", e.target.value)
                           }
                           className="select-field"
                           required
@@ -498,7 +508,7 @@ export default function AddProduct() {
                             style={{
                               backgroundColor:
                                 colors.find(
-                                  (c) => (c.id || c._id) === variant.colorId,
+                                  (c) => (c.id || c._id) === variant.colorId
                                 )?.code || "#888",
                             }}
                           />
@@ -516,14 +526,24 @@ export default function AddProduct() {
                           type="file"
                           multiple
                           accept="image/*"
+                          disabled={uploadingVariants[varIdx]}
                           onChange={(e) => handleImageUpload(varIdx, e)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                         />
                         <div className="flex flex-col items-center gap-1 text-text-secondary-light dark:text-text-secondary-dark">
-                          <ImageIcon size={20} />
-                          <span className="text-xs font-semibold">
-                            Click or drag images to upload
-                          </span>
+                          {uploadingVariants[varIdx] ? (
+                            <>
+                              <Loader2 size={20} className="animate-spin text-accent-brand" />
+                              <span className="text-xs font-semibold">Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon size={20} />
+                              <span className="text-xs font-semibold">
+                                Click or drag images to upload
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -542,10 +562,8 @@ export default function AddProduct() {
                               />
                               <button
                                 type="button"
-                                onClick={() =>
-                                  handleRemoveImage(varIdx, imgIdx)
-                                }
-                                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-colors"
+                                onClick={() => handleRemoveImage(varIdx, imgIdx)}
+                                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-colors cursor-pointer"
                               >
                                 <X size={12} />
                               </button>
@@ -564,7 +582,7 @@ export default function AddProduct() {
                         <button
                           type="button"
                           onClick={() => handleAddSize(varIdx)}
-                          className="text-accent-brand hover:underline text-xs font-semibold flex items-center gap-0.5"
+                          className="text-accent-brand hover:underline text-xs font-semibold flex items-center gap-0.5 cursor-pointer"
                         >
                           <Plus size={12} /> Add Size
                         </button>
@@ -580,7 +598,7 @@ export default function AddProduct() {
                                   varIdx,
                                   szIdx,
                                   "size",
-                                  e.target.value,
+                                  e.target.value
                                 )
                               }
                               placeholder="Size"
@@ -595,7 +613,7 @@ export default function AddProduct() {
                                   varIdx,
                                   szIdx,
                                   "stock",
-                                  parseInt(e.target.value) || 0,
+                                  e.target.value
                                 )
                               }
                               placeholder="Stock"
@@ -607,7 +625,7 @@ export default function AddProduct() {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveSize(varIdx, szIdx)}
-                                className="text-text-secondary-light hover:text-accent-danger p-1.5 rounded-md hover:bg-accent-danger/10"
+                                className="text-text-secondary-light hover:text-accent-danger p-1.5 rounded-md hover:bg-accent-danger/10 cursor-pointer"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -622,23 +640,23 @@ export default function AddProduct() {
             </div>
           </div>
 
-          {/* Buttons */}
+          {/* Action Buttons */}
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => navigate("/products")}
-              className="btn-secondary"
+              className="btn-secondary cursor-pointer"
               disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-primary"
+              className="btn-primary flex items-center gap-2 cursor-pointer"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <span className="spinner w-4! h-4! border-2 animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
               ) : (
                 <>
                   <Save size={16} /> Save Product

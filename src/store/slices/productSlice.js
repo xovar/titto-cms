@@ -1,22 +1,27 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import products from '../../api/productApi';
+import axiosInstance from '../../api/axiosInstance'; // 👈 axiosApi-এর বদলে আপনার তৈরি করা axiosInstance ব্যবহার করা হলো
 
-// ── Async Thunks ────────────────────────────────────────────────────────────
+// ── Helper: Safe Error Extractor (UI Crash প্রতিরোধ করতে) ────────────────────
+const extractErrorMsg = (error, defaultMsg) => {
+  if (error.response?.data?.message) return error.response.data.message;
+  if (typeof error.response?.data === 'string') return error.response.data;
+  return error.message || defaultMsg;
+};
+
+// ── Product Thunks ──────────────────────────────────────────────────────────
 
 export const fetchProducts = createAsyncThunk('products/fetchAll', async (_, { rejectWithValue }) => {
   try {
-    const response = await products.get('/products');
-    return response.data; // কন্ট্রোলার formattedProducts অ্যারে রিটার্ন করে
+    const response = await axiosInstance.get('/products');
+    return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch products');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch products'));
   }
 });
 
 export const addProduct = createAsyncThunk('products/add', async (productData, { rejectWithValue }) => {
   try {
-    const response = await products.post('/products', productData);
-    // কন্ট্রোলার রেসপন্সে পাঠায়: { message: "...", productId: "prod_xxx" }
-    // আমরা ফ্রন্টঅ্যান্ড UI স্টেট ম্যানেজমেন্টের সুবিধার্থে আইডিসহ মূল ডাটাটি রিটার্ন করছি
+    const response = await axiosInstance.post('/products', productData);
     return {
       id: response.data.productId,
       ...productData,
@@ -24,16 +29,16 @@ export const addProduct = createAsyncThunk('products/add', async (productData, {
       sold: 0
     };
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to add product');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to add product'));
   }
 });
 
 export const deleteProduct = createAsyncThunk('products/delete', async (productId, { rejectWithValue }) => {
   try {
-    await products.delete(`/products/${productId}`);
+    await axiosInstance.delete(`/products/${productId}`);
     return productId;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to delete product');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to delete product'));
   }
 });
 
@@ -41,28 +46,28 @@ export const deleteProduct = createAsyncThunk('products/delete', async (productI
 
 export const fetchCategories = createAsyncThunk('products/fetchCategories', async (_, { rejectWithValue }) => {
   try {
-    const response = await products.get('/categories');
+    const response = await axiosInstance.get('/categories');
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch categories');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch categories'));
   }
 });
 
 export const addCategory = createAsyncThunk('products/addCategory', async (data, { rejectWithValue }) => {
   try {
-    const response = await products.post('/categories', data);
+    const response = await axiosInstance.post('/categories', data);
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to add category');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to add category'));
   }
 });
 
 export const deleteCategory = createAsyncThunk('products/deleteCategory', async (id, { rejectWithValue }) => {
   try {
-    await products.delete(`/categories/${id}`);
+    await axiosInstance.delete(`/categories/${id}`);
     return id;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to delete category');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to delete category'));
   }
 });
 
@@ -70,28 +75,28 @@ export const deleteCategory = createAsyncThunk('products/deleteCategory', async 
 
 export const fetchBrands = createAsyncThunk('products/fetchBrands', async (_, { rejectWithValue }) => {
   try {
-    const response = await products.get('/brands');
+    const response = await axiosInstance.get('/brands');
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch brands');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch brands'));
   }
 });
 
 export const addBrand = createAsyncThunk('products/addBrand', async (data, { rejectWithValue }) => {
   try {
-    const response = await products.post('/brands', data);
+    const response = await axiosInstance.post('/brands', data);
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to add brand');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to add brand'));
   }
 });
 
 export const deleteBrand = createAsyncThunk('products/deleteBrand', async (id, { rejectWithValue }) => {
   try {
-    await products.delete(`/brands/${id}`);
+    await axiosInstance.delete(`/brands/${id}`);
     return id;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to delete brand');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to delete brand'));
   }
 });
 
@@ -99,32 +104,32 @@ export const deleteBrand = createAsyncThunk('products/deleteBrand', async (id, {
 
 export const fetchColors = createAsyncThunk('products/fetchColors', async (_, { rejectWithValue }) => {
   try {
-    const response = await products.get('/colors');
+    const response = await axiosInstance.get('/colors');
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch colors');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch colors'));
   }
 });
 
 export const addColor = createAsyncThunk('products/addColor', async (data, { rejectWithValue }) => {
   try {
-    const response = await products.post('/colors', data);
+    const response = await axiosInstance.post('/colors', data);
     return response.data;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to add color');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to add color'));
   }
 });
 
 export const deleteColor = createAsyncThunk('products/deleteColor', async (id, { rejectWithValue }) => {
   try {
-    await products.delete(`/colors/${id}`);
+    await axiosInstance.delete(`/colors/${id}`);
     return id;
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to delete color');
+    return rejectWithValue(extractErrorMsg(error, 'Failed to delete color'));
   }
 });
 
-// ── Slice ───────────────────────────────────────────────────────────────────
+// ── Slice Definition ────────────────────────────────────────────────────────
 
 const productSlice = createSlice({
   name: 'products',
@@ -178,14 +183,13 @@ const productSlice = createSlice({
       })
       .addCase(addProduct.fulfilled, (state, action) => { 
         state.loading.products = false;
-        state.items.unshift(action.payload); // ফিক্সড পেলোড অবজেক্ট যুক্ত হবে
+        state.items.unshift(action.payload);
       })
       .addCase(addProduct.rejected, (state, action) => {
         state.loading.products = false;
         state.error.products = action.payload;
       })
       .addCase(deleteProduct.fulfilled, (state, action) => {
-        // কন্ট্রোলারের 'id' প্রোপার্টির সাথে ম্যাচ করে ক্লীন ফিল্টারিং
         state.items = state.items.filter((item) => item.id !== action.payload);
       })
 

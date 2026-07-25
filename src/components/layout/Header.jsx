@@ -1,7 +1,10 @@
+import { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useLocation } from 'react-router-dom';
-import { Sun, Moon, Menu, User } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Sun, Moon, Menu, User, LogOut } from 'lucide-react';
 import { toggleTheme } from '../../store/slices/themeSlice';
+import { auth } from '../../config/firebase'; // 👈 আপনার ফায়ারবেস কনফিগ ফাইল পাথ নিশ্চিত করুন
+import { signOut } from 'firebase/auth';
 
 const routeLabels = {
   '/': ['Dashboard'],
@@ -14,10 +17,39 @@ const routeLabels = {
 
 export default function Header({ onMenuToggle }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { darkMode } = useSelector((state) => state.theme);
   const location = useLocation();
 
+  // ⚡ Dropdown State & Ref
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
   const breadcrumbs = routeLabels[location.pathname] || ['Dashboard'];
+
+  // ⚡ ড্রপডাউনের বাইরে ক্লিক করলে ড্রপডাউন বন্ধ করার লজিক
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // ⚡ Logout Handler Function
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Firebase Logout
+      localStorage.clear();  // Local storage clear
+      sessionStorage.clear();
+      setIsDropdownOpen(false);
+      navigate('/login');    // Redirect to login page
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
@@ -51,7 +83,7 @@ export default function Header({ onMenuToggle }) {
         </nav>
       </div>
 
-      {/* Right: dark mode + avatar */}
+      {/* Right: dark mode + user profile dropdown */}
       <div className="flex items-center gap-3">
         <button
           id="dark-mode-toggle"
@@ -62,18 +94,46 @@ export default function Header({ onMenuToggle }) {
           {darkMode ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        <div className="flex items-center gap-2.5 pl-3 border-l border-border-light dark:border-border-dark">
-          <div className="w-8 h-8 rounded-full bg-accent-brand/10 flex items-center justify-center">
-            <User size={16} className="text-accent-brand" />
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark leading-none">
-              Admin User
-            </p>
-            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
-              admin@crmpro.com
-            </p>
-          </div>
+        {/* ⚡ User Profile Section with Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-2.5 pl-3 border-l border-border-light dark:border-border-dark focus:outline-none hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-full bg-accent-brand/10 flex items-center justify-center">
+              <User size={16} className="text-accent-brand" />
+            </div>
+            <div className="hidden sm:block text-left">
+              <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark leading-none">
+                Admin User
+              </p>
+              <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
+                admin@crmpro.com
+              </p>
+            </div>
+          </button>
+
+          {/* ⚡ Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-surface-light dark:bg-surface-dark rounded-xl shadow-lg border border-border-light dark:border-border-dark py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-4 py-2 border-b border-border-light dark:border-border-dark sm:hidden">
+                <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
+                  Admin User
+                </p>
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">
+                  admin@crmpro.com
+                </p>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <LogOut size={16} />
+                <span>Logout</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

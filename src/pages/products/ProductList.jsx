@@ -75,14 +75,14 @@ function ProductCard({ product, onDelete }) {
         {/* Action overlay */}
         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
           <button
-            className="p-2 rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
+            className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
             title="Edit"
           >
             <Pencil size={14} />
           </button>
           <button
             onClick={() => setShowConfirm(true)}
-            className="p-2 rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-danger hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
+            className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-danger hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
             title="Delete"
           >
             <Trash2 size={14} />

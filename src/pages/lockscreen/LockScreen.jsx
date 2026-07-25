@@ -17,28 +17,59 @@ export default function LockScreen() {
     setLoading(true);
 
     try {
-      // 1. Google Firebase দিয়ে Email/Password ভেরিফাই
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // 2. Firebase User & ID Token সংগ্রহ
+      // ১. Google Firebase দিয়ে Email/Password ভেরিফাই
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+
+      // ২. Firebase User & ID Token সংগ্রহ
       const user = userCredential.user;
       const idToken = await user.getIdToken();
 
-      console.log("Logged in Google/Firebase user:", user.email);
-      console.log("Firebase ID Token:", idToken);
+      // 🔗 ৩. আপনার Node.js ব্যাকএন্ড API-তে ভেরিফিকেশনের জন্য পাঠানো
+      // 💡 নোট: প্রয়োজন অনুযায়ী ব্যাকএন্ড ডোমেইন পরিবর্তন করুন (যেমন: https://yourdomain.com/api/auth/verify-admin)
+      const res = await fetch(
+        "https://api.titto.com.bd/api/auth/verify-admin",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+        },
+      );
 
-      // 3. সফল লগইনের পর ড্যাশবোর্ডে নেভিগেট
+      const data = await res.json();
+
+      // ❌ ব্যাকএন্ড যদি বলে ইউজার অ্যাডমিন না (403 Forbidden) বা অন্য সমস্যা
+      if (!res.ok) {
+        throw new Error(data.message || "আপনার অ্যাডমিন এক্সেস নেই!");
+      }
+
+      console.log("Logged in Admin User:", data.user);
+
+      // optional: লোকাল স্টোরেজে ইউজারের তথ্য সেভ করে রাখতে পারেন
+      localStorage.setItem("admin_user", JSON.stringify(data.user));
+
+      // 🎯 ৪. ব্যাকএন্ড থেকে ভেরিফিকেশন সফল হলে ড্যাশবোর্ডে নেভিগেট
       navigate("/", { replace: true });
-
     } catch (err) {
-      console.error("Firebase Auth Error:", err);
-      // সহজ ভাষায় এরর মেসেজ হ্যান্ডলিং
-      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found") {
-        setError("ইমেইল অথবা পাসওয়ার্ড ভুল হয়েছে!");
+      console.error("Auth Error:", err);
+
+      // ফায়ারবেস বা ব্যাকএন্ডের এরর মেসেজ হ্যান্ডলিং
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/user-not-found"
+      ) {
+        setError("ইমেইল অথবা পাসওয়ার্ড ভুল হয়েছে!");
       } else if (err.code === "auth/too-many-requests") {
-        setError("অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।");
+        setError(
+          "অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।",
+        );
       } else {
-        setError("লগইন করতে সমস্যা হচ্ছে। আবার চেষ্টা করুন।");
+        setError(err.message || "লগইন করতে সমস্যা হচ্ছে। আবার চেষ্টা করুন।");
       }
     } finally {
       setLoading(false);
@@ -113,7 +144,7 @@ export default function LockScreen() {
             disabled={loading}
             className="w-full py-2.5 px-4 bg-[#6b51b6] hover:bg-[#5b439f] active:bg-[#4d3788] text-white font-medium text-sm rounded-lg shadow-sm transition-colors duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? "Verifying..." : "Log In"}
+            {loading ? "Verifying Admin..." : "Log In"}
           </button>
         </form>
       </div>
