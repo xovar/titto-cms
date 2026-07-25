@@ -25,7 +25,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 relative min-h-[80vh]" id="dashboard-view">
       {/* 💡 Overlay with Blur Effect & Message */}
-      <div className="absolute inset-0 z-10 bg-white/60 dark:bg-black/60 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-6 text-center shadow-lg transition-all">
+      <div className="absolute inset-0 z-10 bg-white/60 dark:bg-black/60 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-6 text-center shadow-lg transition-all">
         <div className="bg-white/80 dark:bg-gray-900/80 border border-border-light dark:border-border-dark p-8 rounded-2xl shadow-xl max-w-md">
           <p className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark tracking-wide">
             Working so hard on it please be patient 🙏
