@@ -25,7 +25,7 @@ export default function AddProduct() {
   const navigate = useNavigate();
 
   const { categories, brands, colors, loading } = useSelector(
-    (state) => state.products
+    (state) => state.products,
   );
   const isSubmitting = loading?.products || false;
 
@@ -36,6 +36,7 @@ export default function AddProduct() {
   const [discount, setDiscount] = useState("0");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
+  const [gender, setGender] = useState(0);
 
   // Variant & UI Loading State
   const [variants, setVariants] = useState([
@@ -102,86 +103,98 @@ export default function AddProduct() {
 
   const handleVariantChange = (varIdx, field, val) => {
     setVariants((prev) =>
-      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v))
+      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v)),
     );
   };
 
   // Image Upload Handler
-const handleImageUpload = async (varIdx, e) => {
-  // async কাজের পর e.target হারিয়ে যাওয়া ঠেকাতে আগেই রেফারেন্স সেভ
-  const inputElement = e.target;
-  const files = Array.from(inputElement.files || []);
-  if (files.length === 0) return;
+  const handleImageUpload = async (varIdx, e) => {
+    // async কাজের পর e.target হারিয়ে যাওয়া ঠেকাতে আগেই রেফারেন্স সেভ
+    const inputElement = e.target;
+    const files = Array.from(inputElement.files || []);
+    if (files.length === 0) return;
 
-  setUploadingVariants((prev) => ({ ...prev, [varIdx]: true }));
+    setUploadingVariants((prev) => ({ ...prev, [varIdx]: true }));
 
-  const options = {
-    maxSizeMB: 0.3,
-    maxWidthOrHeight: 1200,
-    useWebWorker: true,
-  };
+    const options = {
+      maxSizeMB: 0.3,
+      maxWidthOrHeight: 1200,
+      useWebWorker: true,
+    };
 
-  const formData = new FormData();
+    const formData = new FormData();
 
-  try {
-    for (let file of files) {
-      const compressedBlob = await imageCompression(file, options);
-      const fileName = file.name || `image_${Date.now()}.jpg`;
-      const compressedFile = new File([compressedBlob], fileName, {
-        type: compressedBlob.type,
-      });
+    try {
+      for (let file of files) {
+        const compressedBlob = await imageCompression(file, options);
+        const fileName = file.name || `image_${Date.now()}.jpg`;
+        const compressedFile = new File([compressedBlob], fileName, {
+          type: compressedBlob.type,
+        });
 
-      formData.append("images", compressedFile);
-    }
+        formData.append("images", compressedFile);
+      }
 
-    // axios-এর বদলে axiosInstance ব্যবহার করা হলো (Firebase Token অটো চলে যাবে)
-    // Content-Type undefined করে দিলে ব্রাউজার নিজ থেকে সঠিক boundary-সহ multipart/form-data সেট করবে
-    const response = await axiosInstance.post("/upload/upload-images", formData, {
-      headers: {
-        "Content-Type": undefined,
-      },
-    });
-
-    const uploadedUrls =
-      response.data?.urls || response.data?.imageUrls || response.data?.images || [];
-
-    if (Array.isArray(uploadedUrls) && uploadedUrls.length > 0) {
-      setVariants((prev) =>
-        prev.map((v, i) => {
-          if (i !== varIdx) return v;
-          const uniqueImages = Array.from(new Set([...v.images, ...uploadedUrls]));
-          return { ...v, images: uniqueImages };
-        })
+      // axios-এর বদলে axiosInstance ব্যবহার করা হলো (Firebase Token অটো চলে যাবে)
+      // Content-Type undefined করে দিলে ব্রাউজার নিজ থেকে সঠিক boundary-সহ multipart/form-data সেট করবে
+      const response = await axiosInstance.post(
+        "/upload/upload-images",
+        formData,
+        {
+          headers: {
+            "Content-Type": undefined,
+          },
+        },
       );
-      setValidationError("");
+
+      const uploadedUrls =
+        response.data?.urls ||
+        response.data?.imageUrls ||
+        response.data?.images ||
+        [];
+
+      if (Array.isArray(uploadedUrls) && uploadedUrls.length > 0) {
+        setVariants((prev) =>
+          prev.map((v, i) => {
+            if (i !== varIdx) return v;
+            const uniqueImages = Array.from(
+              new Set([...v.images, ...uploadedUrls]),
+            );
+            return { ...v, images: uniqueImages };
+          }),
+        );
+        setValidationError("");
+      }
+    } catch (error) {
+      console.error("Image upload failed:", error);
+      const serverMsg =
+        error.response?.data?.message ||
+        "Failed to upload images. Please try again.";
+      setValidationError(serverMsg);
+    } finally {
+      setUploadingVariants((prev) => ({ ...prev, [varIdx]: false }));
+      if (inputElement) inputElement.value = ""; // নিরাপদ ইনপুট রিসেট
     }
-  } catch (error) {
-    console.error("Image upload failed:", error);
-    const serverMsg =
-      error.response?.data?.message || "Failed to upload images. Please try again.";
-    setValidationError(serverMsg);
-  } finally {
-    setUploadingVariants((prev) => ({ ...prev, [varIdx]: false }));
-    if (inputElement) inputElement.value = ""; // নিরাপদ ইনপুট রিসেট
-  }
-};
+  };
 
   // Image Remove Handler
   const handleRemoveImage = async (varIdx, imgIdx) => {
     const imageUrlToRemove = variants[varIdx]?.images[imgIdx];
     if (!imageUrlToRemove) return;
 
-    // Optimistic UI Update
+    // Optimistic UI Update: সার্ভার রেসপন্সের আগেই ইউজারকে ফাস্ট ফিল দেওয়ার জন্য স্টেট থেকে ডিলিট
     setVariants((prev) =>
       prev.map((v, i) =>
         i === varIdx
           ? { ...v, images: v.images.filter((_, idx) => idx !== imgIdx) }
-          : v
-      )
+          : v,
+      ),
     );
 
     try {
-      await axios.post("https://api.titto.com.bd/api/upload/delete-image", {
+      // direct axios এর জায়গায় axiosInstance ব্যবহার করা হলো
+      // এটি অটোমেটিক Firebase Bearer Token হেডার-এ যুক্ত করবে
+      await axiosInstance.post("/upload/delete-image", {
         imageUrl: imageUrlToRemove,
       });
       setValidationError("");
@@ -200,8 +213,8 @@ const handleImageUpload = async (varIdx, e) => {
       prev.map((v, i) =>
         i === varIdx
           ? { ...v, sizes: [...v.sizes, { size: "", stock: "" }] }
-          : v
-      )
+          : v,
+      ),
     );
   };
 
@@ -213,7 +226,7 @@ const handleImageUpload = async (varIdx, e) => {
           ...v,
           sizes: v.sizes.filter((_, sIdx) => sIdx !== sizeIdx),
         };
-      })
+      }),
     );
   };
 
@@ -222,10 +235,10 @@ const handleImageUpload = async (varIdx, e) => {
       prev.map((v, i) => {
         if (i !== varIdx) return v;
         const updatedSizes = v.sizes.map((s, sIdx) =>
-          sIdx === sizeIdx ? { ...s, [field]: val } : s
+          sIdx === sizeIdx ? { ...s, [field]: val } : s,
         );
         return { ...v, sizes: updatedSizes };
-      })
+      }),
     );
   };
 
@@ -247,7 +260,7 @@ const handleImageUpload = async (varIdx, e) => {
 
       if (v.images.length === 0) {
         return setValidationError(
-          `Please upload at least one image for variant ${i + 1}`
+          `Please upload at least one image for variant ${i + 1}`,
         );
       }
 
@@ -255,34 +268,35 @@ const handleImageUpload = async (varIdx, e) => {
         const s = v.sizes[j];
         if (!s.size.trim()) {
           return setValidationError(
-            `Please enter size name for variant ${i + 1}, item ${j + 1}`
+            `Please enter size name for variant ${i + 1}, item ${j + 1}`,
           );
         }
         if (s.stock === "" || parseInt(s.stock) < 0) {
           return setValidationError(
-            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`
+            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`,
           );
         }
       }
     }
 
-    const payload = {
-      name,
-      description,
-      price: parseFloat(price),
-      discount: parseFloat(discount) || 0,
-      category_id: categoryId,
-      brand_id: brandId,
-      variants: variants.map((v) => ({
-        color_id: v.colorId,
-        images: v.images,
-        sizes: v.sizes.map((s) => ({
-          size: s.size,
-          stock: parseInt(s.stock) || 0,
-        })),
-      })),
-    };
-
+   const payload = {
+  name: name.trim(),
+  description: description.trim(),
+  price: parseFloat(price) || 0,
+  discount: parseFloat(discount) || 0,
+  category_id: categoryId,
+  brand_id: brandId,
+  // gender খালি থাকলে 0 বা ডিফল্ট ইন্টিজার ভ্যালু যাবে (NaN যাবে না)
+  gender: isNaN(parseInt(gender, 10)) ? 0 : parseInt(gender, 10), 
+  variants: variants.map((v) => ({
+    color_id: v.colorId,
+    images: v.images,
+    sizes: v.sizes.map((s) => ({
+      size: s.size.trim(),
+      stock: parseInt(s.stock, 10) || 0,
+    })),
+  })),
+};
     dispatch(addProduct(payload))
       .unwrap()
       .then(() => {
@@ -439,6 +453,24 @@ const handleImageUpload = async (varIdx, e) => {
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">
+                      For/Gender *
+                    </label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="select-field"
+                      required
+                    >
+                      <option value="" disabled>
+                        Select Brand
+                      </option>
+                      <option value="1">Male</option>
+                      <option value="0">Female</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -490,7 +522,11 @@ const handleImageUpload = async (varIdx, e) => {
                         <select
                           value={variant.colorId}
                           onChange={(e) =>
-                            handleVariantChange(varIdx, "colorId", e.target.value)
+                            handleVariantChange(
+                              varIdx,
+                              "colorId",
+                              e.target.value,
+                            )
                           }
                           className="select-field"
                           required
@@ -508,7 +544,7 @@ const handleImageUpload = async (varIdx, e) => {
                             style={{
                               backgroundColor:
                                 colors.find(
-                                  (c) => (c.id || c._id) === variant.colorId
+                                  (c) => (c.id || c._id) === variant.colorId,
                                 )?.code || "#888",
                             }}
                           />
@@ -533,8 +569,13 @@ const handleImageUpload = async (varIdx, e) => {
                         <div className="flex flex-col items-center gap-1 text-text-secondary-light dark:text-text-secondary-dark">
                           {uploadingVariants[varIdx] ? (
                             <>
-                              <Loader2 size={20} className="animate-spin text-accent-brand" />
-                              <span className="text-xs font-semibold">Uploading...</span>
+                              <Loader2
+                                size={20}
+                                className="animate-spin text-accent-brand"
+                              />
+                              <span className="text-xs font-semibold">
+                                Uploading...
+                              </span>
                             </>
                           ) : (
                             <>
@@ -562,7 +603,9 @@ const handleImageUpload = async (varIdx, e) => {
                               />
                               <button
                                 type="button"
-                                onClick={() => handleRemoveImage(varIdx, imgIdx)}
+                                onClick={() =>
+                                  handleRemoveImage(varIdx, imgIdx)
+                                }
                                 className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80 transition-colors cursor-pointer"
                               >
                                 <X size={12} />
@@ -598,7 +641,7 @@ const handleImageUpload = async (varIdx, e) => {
                                   varIdx,
                                   szIdx,
                                   "size",
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               placeholder="Size"
@@ -613,7 +656,7 @@ const handleImageUpload = async (varIdx, e) => {
                                   varIdx,
                                   szIdx,
                                   "stock",
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               placeholder="Stock"

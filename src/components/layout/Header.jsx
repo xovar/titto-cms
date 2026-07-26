@@ -85,14 +85,15 @@ export default function Header({ onMenuToggle }) {
 
       {/* Right: dark mode + user profile dropdown */}
       <div className="flex items-center gap-3">
-        <button
+        {/* for later version */}
+        {/* <button
           id="dark-mode-toggle"
           onClick={() => dispatch(toggleTheme())}
           className="p-2 rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark transition-colors"
           title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        </button> */}
 
         {/* ⚡ User Profile Section with Dropdown */}
         <div className="relative" ref={dropdownRef}>

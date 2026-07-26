@@ -19,19 +19,30 @@ export const fetchProducts = createAsyncThunk('products/fetchAll', async (_, { r
   }
 });
 
-export const addProduct = createAsyncThunk('products/add', async (productData, { rejectWithValue }) => {
-  try {
-    const response = await axiosInstance.post('/products', productData);
-    return {
-      id: response.data.productId,
-      ...productData,
-      viewed: 0,
-      sold: 0
-    };
-  } catch (error) {
-    return rejectWithValue(extractErrorMsg(error, 'Failed to add product'));
+export const addProduct = createAsyncThunk(
+  'products/add',
+  async (productData, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post('/products', productData);
+      
+      // ব্যাকএন্ড সরাসরি ক্রিয়েট করা ডেটা অথবা id ওয়ালা অবজেক্ট ফেরত দিলে:
+      if (response.data && typeof response.data === 'object') {
+        return response.data;
+      }
+
+      // যদি ব্যাকএন্ডে শুধু id/productId ফেরত দেয়:
+      const newId = response.data?.productId || response.data?.id || response.data?.insertId;
+      return {
+        id: newId,
+        ...productData,
+        viewed: 0,
+        sold: 0,
+      };
+    } catch (error) {
+      return rejectWithValue(extractErrorMsg(error, 'Failed to add product'));
+    }
   }
-});
+);
 
 export const deleteProduct = createAsyncThunk('products/delete', async (productId, { rejectWithValue }) => {
   try {
