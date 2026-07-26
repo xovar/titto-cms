@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Pencil, Trash2, Eye, Tag, ShoppingBag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // 👈 useNavigate ইমপোর্ট করা হলো
+import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus } from 'lucide-react';
 import { fetchProducts, deleteProduct } from '../../store/slices/productSlice';
 
 function ProductCard({ product, onDelete }) {
+  const navigate = useNavigate(); // 👈 Navigate হুক инициализация
+
   // ⚡ প্রথম ভ্যারিয়েন্টকে ডিফল্ট একটিভ ভ্যারিয়েন্ট হিসেবে সেট করছি
   const [activeVariantIndex, setActiveVariantIndex] = useState(0);
   const [imageIndex, setImageIndex] = useState(0);
@@ -74,7 +77,9 @@ function ProductCard({ product, onDelete }) {
 
         {/* Action overlay */}
         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+          {/* ⚡ Edit Button - রাউটে রিডাইরেক্ট করবে */}
           <button
+            onClick={() => navigate(`/products/edit/${product.id}`)}
             className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
             title="Edit"
           >
@@ -129,7 +134,7 @@ function ProductCard({ product, onDelete }) {
           <div className="flex items-center gap-1.5 pt-1">
             {product.variants.map((v, index) => (
               <button
-                key={v.id}
+                key={v.id || index}
                 onClick={() => handleVariantChange(index)}
                 className={`w-5 h-5 rounded-full border-2 transition-transform ${
                   index === activeVariantIndex 
@@ -147,11 +152,11 @@ function ProductCard({ product, onDelete }) {
         <div className="flex items-center gap-4 text-xs text-text-secondary-light dark:text-text-secondary-dark pt-1 border-t border-border-light dark:border-border-dark">
           <div className="flex items-center gap-1">
             <Eye size={12} />
-            <span>{product.viewed} views</span>
+            <span>{product.viewed || 0} views</span>
           </div>
           <div className="flex items-center gap-1">
             <ShoppingBag size={12} />
-            <span>{product.sold} sold</span>
+            <span>{product.sold || 0} sold</span>
           </div>
         </div>
       </div>
@@ -185,12 +190,10 @@ function ProductCard({ product, onDelete }) {
 
 export default function ProductList() {
   const dispatch = useDispatch();
+  const navigate = useNavigate(); // 👈 Navigation for "Add Product"
   
-  // ⚡ স্লাইসের আপডেটেড স্ট্রাকচার অনুযায়ী স্টেট ডেস্ট্রাকচারিং করা হলো
   const items = useSelector((state) => state.products.items);
   const isProductLoading = useSelector((state) => state.products.loading.products);
-
-  console.log(items);
 
   useEffect(() => {
     dispatch(fetchProducts());
@@ -200,7 +203,6 @@ export default function ProductList() {
     dispatch(deleteProduct(id));
   };
 
-  // ⚡ লোডিং ট্র্যাকিং-এ নতুন `isProductLoading` ভেরিয়েবল ব্যবহার করা হয়েছে
   if (isProductLoading && items.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -220,6 +222,14 @@ export default function ProductList() {
             {items.length} products in catalog
           </p>
         </div>
+
+        {/* ⚡ Add Product Button */}
+        <button
+          onClick={() => navigate('/products/add')}
+          className="btn-primary flex items-center gap-2 cursor-pointer"
+        >
+          <Plus size={16} /> Add Product
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -234,9 +244,15 @@ export default function ProductList() {
           <p className="text-lg font-medium text-text-primary-light dark:text-text-primary-dark">
             No products yet
           </p>
-          <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">
+          <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1 mb-4">
             Add your first product to get started.
           </p>
+          <button
+            onClick={() => navigate('/products/add')}
+            className="btn-primary inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Plus size={16} /> Add Product
+          </button>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axiosInstance from '../../api/axiosInstance'; // 👈 axiosApi-এর বদলে আপনার তৈরি করা axiosInstance ব্যবহার করা হলো
+import axiosInstance from '../../api/axiosInstance';
 
-// ── Helper: Safe Error Extractor (UI Crash প্রতিরোধ করতে) ────────────────────
+// Helper: Safe Error Extractor
 const extractErrorMsg = (error, defaultMsg) => {
   if (error.response?.data?.message) return error.response.data.message;
   if (typeof error.response?.data === 'string') return error.response.data;
@@ -19,18 +19,26 @@ export const fetchProducts = createAsyncThunk('products/fetchAll', async (_, { r
   }
 });
 
+// ⚡ Single Product Fetch Thunk
+export const fetchProductById = createAsyncThunk('products/fetchById', async (id, { rejectWithValue }) => {
+  try {
+    const response = await axiosInstance.get(`/products/${id}`);
+    return response.data;
+  } catch (error) {
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch product details'));
+  }
+});
+
 export const addProduct = createAsyncThunk(
   'products/add',
   async (productData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/products', productData);
       
-      // ব্যাকএন্ড সরাসরি ক্রিয়েট করা ডেটা অথবা id ওয়ালা অবজেক্ট ফেরত দিলে:
       if (response.data && typeof response.data === 'object') {
         return response.data;
       }
 
-      // যদি ব্যাকএন্ডে শুধু id/productId ফেরত দেয়:
       const newId = response.data?.productId || response.data?.id || response.data?.insertId;
       return {
         id: newId,
@@ -40,6 +48,18 @@ export const addProduct = createAsyncThunk(
       };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to add product'));
+    }
+  }
+);
+
+export const updateProduct = createAsyncThunk(
+  'products/update',
+  async ({ id, productData }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/products/${id}`, productData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMsg(error, 'Failed to update product'));
     }
   }
 );
@@ -146,6 +166,7 @@ const productSlice = createSlice({
   name: 'products',
   initialState: {
     items: [],
+    selectedProduct: null, // Single product store করার জন্য
     categories: [],
     brands: [],
     colors: [],
@@ -188,6 +209,19 @@ const productSlice = createSlice({
         state.loading.products = false; 
         state.error.products = action.payload; 
       })
+      // ⚡ Single Product Fetch State
+      .addCase(fetchProductById.pending, (state) => {
+        state.loading.products = true;
+        state.error.products = null;
+      })
+      .addCase(fetchProductById.fulfilled, (state, action) => {
+        state.loading.products = false;
+        state.selectedProduct = action.payload;
+      })
+      .addCase(fetchProductById.rejected, (state, action) => {
+        state.loading.products = false;
+        state.error.products = action.payload;
+      })
       .addCase(addProduct.pending, (state) => {
         state.loading.products = true;
         state.error.products = null;
@@ -197,6 +231,22 @@ const productSlice = createSlice({
         state.items.unshift(action.payload);
       })
       .addCase(addProduct.rejected, (state, action) => {
+        state.loading.products = false;
+        state.error.products = action.payload;
+      })
+      // ⚡ Update Product State
+      .addCase(updateProduct.pending, (state) => {
+        state.loading.products = true;
+        state.error.products = null;
+      })
+      .addCase(updateProduct.fulfilled, (state, action) => {
+        state.loading.products = false;
+        const index = state.items.findIndex((item) => item.id === action.payload.id);
+        if (index !== -1) {
+          state.items[index] = action.payload;
+        }
+      })
+      .addCase(updateProduct.rejected, (state, action) => {
         state.loading.products = false;
         state.error.products = action.payload;
       })

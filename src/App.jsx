@@ -8,6 +8,7 @@ import Colors from './pages/products/Colors';
 import Brands from './pages/products/Brands';
 import LockScreen from './pages/lockscreen/LockScreen';
 import PrivateRoute from './pages/firebase/PrivateRoute'; // 👈 Import PrivateRoute
+import ProductForm from './components/productsForm/ProductForm';
 
 export default function App() {
   return (
@@ -20,7 +21,8 @@ export default function App() {
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="products" element={<ProductList />} />
-          <Route path="products/add" element={<AddProduct />} />
+          <Route path="/products/add" element={<ProductForm />} />
+          <Route path="/products/edit/:id" element={<ProductForm />} />
           <Route path="products/categories" element={<Categories />} />
           <Route path="products/colors" element={<Colors />} />
           <Route path="products/brands" element={<Brands />} />
