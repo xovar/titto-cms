@@ -106,10 +106,10 @@ export default function Header({ onMenuToggle }) {
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark leading-none">
-                Admin User
+                Titto Admin
               </p>
               <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
-                admin@crmpro.com
+                tittowebsiteadmin@gmail.com
               </p>
             </div>
           </button>

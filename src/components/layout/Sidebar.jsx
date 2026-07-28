@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom'; // 👈 Link ইমপোর্ট করা হয়েছে
 import {
   LayoutDashboard,
   Package,
@@ -10,8 +10,13 @@ import {
   Award,
   ChevronDown,
   X,
+  ShoppingBag,
+  Clock,
+  CheckCircle2,
+  Truck,
 } from 'lucide-react';
 
+// Product Sub Links
 const productSubLinks = [
   { to: '/products', label: 'Product List', icon: List },
   { to: '/products/add', label: 'Add New', icon: PlusCircle },
@@ -20,10 +25,25 @@ const productSubLinks = [
   { to: '/products/brands', label: 'Brands', icon: Award },
 ];
 
+// 🛍️ Order Sub Links
+const orderSubLinks = [
+  { to: '/orders', label: 'All Orders', icon: List },
+  { to: '/orders/add', label: 'Create Order', icon: PlusCircle },
+  { to: '/orders?status=pending', label: 'Pending', icon: Clock },
+  { to: '/orders?status=shipped', label: 'Shipped', icon: Truck },
+  { to: '/orders?status=delivered', label: 'Delivered', icon: CheckCircle2 },
+];
+
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
+
+  // Route Trackers
   const isProductRoute = location.pathname.startsWith('/products');
+  const isOrderRoute = location.pathname.startsWith('/orders');
+
+  // Accordion Expand States
   const [productsExpanded, setProductsExpanded] = useState(isProductRoute);
+  const [ordersExpanded, setOrdersExpanded] = useState(isOrderRoute);
 
   return (
     <>
@@ -77,7 +97,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <span>Dashboard</span>
           </NavLink>
 
-          {/* Products accordion */}
+          {/* 📦 Products accordion */}
           <div>
             <button
               onClick={() => setProductsExpanded(!productsExpanded)}
@@ -106,12 +126,62 @@ export default function Sidebar({ isOpen, onClose }) {
                       key={link.to}
                       to={link.to}
                       end
-                      className={({ isActive }) => `sidebar-link text-[0.8125rem] py-2 ${isActive ? 'active' : ''}`}
+                      className={({ isActive }) =>
+                        `sidebar-link text-[0.8125rem] py-2 ${isActive ? 'active' : ''}`
+                      }
                       onClick={onClose}
                     >
                       <Icon size={16} />
                       <span>{link.label}</span>
                     </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 🛒 Orders accordion */}
+          <div>
+            <button
+              onClick={() => setOrdersExpanded(!ordersExpanded)}
+              className={`sidebar-link w-full justify-between ${isOrderRoute ? 'active' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <ShoppingBag size={20} />
+                <span>Orders</span>
+              </div>
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-200 ${ordersExpanded ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                ordersExpanded ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+              }`}
+            >
+              <div className="ml-4 pl-3 border-l border-border-light dark:border-border-dark space-y-0.5 mt-1">
+                {orderSubLinks.map((link) => {
+                  const Icon = link.icon;
+
+                  // 💡 বর্তমান পুরো URL (Path + Query Params) চেক করা হচ্ছে
+                  const currentFullUrl = location.pathname + location.search;
+                  const isLinkActive = currentFullUrl === link.to;
+
+                  return (
+                    // ⚡ NavLink-এর বদলে Link ব্যবহার করা হয়েছে যেন অটোমেটিক 'active' ক্লাস না আসে
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className={`sidebar-link text-[0.8125rem] py-2 ${
+                        isLinkActive ? 'active' : ''
+                      }`}
+                      onClick={onClose}
+                    >
+                      <Icon size={16} />
+                      <span>{link.label}</span>
+                    </Link>
                   );
                 })}
               </div>
