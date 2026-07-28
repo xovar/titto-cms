@@ -1,19 +1,40 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axiosInstance from '../../api/axiosInstance';
+// import axiosInstance from '../../api/axiosInstance'; // 🔇 API Import আপাতত বন্ধ
 
+// 🔇 Muted Async Thunk: API Call না করে ডামি ডাটা পাঠাবে
 export const fetchDashboardData = createAsyncThunk('dashboard/fetchData', async (_, { rejectWithValue }) => {
   try {
-    const response = await axiosInstance.get('/dashboard');
-    return response.data;
+    // ----------------------------------------------------
+    // 🧪 API Call আপাতত Mute রাখা হলো:
+    // const response = await axiosInstance.get('/dashboard');
+    // return response.data;
+    // ----------------------------------------------------
+
+    // 🟢 Fake/Dummy Response (যাতে ফ্রন্টএন্ড এ এরর না আসে)
+    return {
+      stats: {
+        totalOrders: 0,
+        totalSales: 0,
+        totalProducts: 0,
+        totalCustomers: 0,
+      },
+      salesChart: [],
+      recentOrders: [],
+    };
   } catch (error) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch dashboard data');
+    return rejectWithValue('Dashboard data is currently muted');
   }
 });
 
 const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState: {
-    stats: null,
+    stats: {
+      totalOrders: 0,
+      totalSales: 0,
+      totalProducts: 0,
+      totalCustomers: 0,
+    },
     salesChart: [],
     recentOrders: [],
     loading: false,
@@ -23,7 +44,7 @@ const dashboardSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchDashboardData.pending, (state) => {
-        state.loading = true;
+        state.loading = false; // 🔇 Loading ও বন্ধ রাখা হয়েছে
         state.error = null;
       })
       .addCase(fetchDashboardData.fulfilled, (state, action) => {

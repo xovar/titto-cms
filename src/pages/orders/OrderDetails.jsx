@@ -1,5 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  fetchOrderById,
+  updateOrderStatus,
+  clearSelectedOrder,
+} from '../../store/slices/orderSlice'; // ⚠️ আপনার ফোল্ডার স্ট্রাকচার অনুযায়ী Path চেক করুন
+
 import {
   ArrowLeft,
   Printer,
@@ -8,80 +15,64 @@ import {
   MapPin,
   Package,
   Clock,
-  Truck,
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
   Save,
   Calendar,
   CreditCard,
   Check,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function OrderDetails() {
   const { id } = useParams();
+  const dispatch = useDispatch();
 
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  // 1️⃣ Redux State থেকে ডাটা নেওয়া
+  const { selectedOrder, loading, updating, error } = useSelector((state) => state.orders);
+
   const [status, setStatus] = useState('');
   const [message, setMessage] = useState('');
 
-  // 🔄 ব্যাকএন্ড থেকে নির্দিষ্ট অর্ডারের ডিটেইলস ফেচ করা
+  // 2️⃣ URL parameter পরিবর্তন হলে Redux action দিয়ে অর্ডার ফেচ করা
   useEffect(() => {
-    const fetchOrderDetails = async () => {
-      try {
-        const response = await fetch(`http://localhost:5000/api/orders/${id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setOrder(data);
-          setStatus(data.status || 'pending');
-        } else {
-          console.error('Failed to fetch order details');
-        }
-      } catch (error) {
-        console.error('Error fetching order details:', error);
-      } finally {
-        setLoading(false);
-      }
+    if (id && id !== 'undefined') {
+      dispatch(fetchOrderById(id));
+    }
+
+    // Unmount হওয়ার সময় স্লেকটেড অর্ডার ক্লিয়ার করা (যাতে পরেরবার আগের ডাটা না ফ্ল্যাশ করে)
+    return () => {
+      dispatch(clearSelectedOrder());
     };
+  }, [dispatch, id]);
 
-    fetchOrderDetails();
-  }, [id]);
+  // 3️⃣ backend Response Extract (যদি ব্যাকএন্ড ডাটা অবজেক্টে মোড়ানো থাকে)
+  const order = selectedOrder?.data || selectedOrder?.order || selectedOrder;
 
-  // ✏️ অর্ডার স্ট্যাটাস আপডেট করার ফাংশন
+  // Sync Local status state when order loads
+  useEffect(() => {
+    if (order?.status) {
+      setStatus(order.status);
+    }
+  }, [order?.status]);
+
+  // ✏️ Redux এর মাধ্যমে স্ট্যাটাস আপডেট
   const handleStatusUpdate = async () => {
-    setUpdating(true);
-    setMessage('');
-    try {
-      const response = await fetch(`http://localhost:5000/api/orders/${id}/status`, {
-        method: 'PATCH', // আপনার API অনুযায়ী PUT বা PATCH হতে পারে
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status }),
-      });
+    if (!id || status === order?.status) return;
 
-      if (response.ok) {
-        setMessage('Order status updated successfully!');
-        setOrder((prev) => ({ ...prev, status }));
-      } else {
-        setMessage('Failed to update order status');
-      }
-    } catch (error) {
-      console.error('Error updating status:', error);
-      setMessage('Network error. Could not update status.');
-    } finally {
-      setUpdating(false);
+    setMessage('');
+    const resultAction = await dispatch(updateOrderStatus({ id, status }));
+
+    if (updateOrderStatus.fulfilled.match(resultAction)) {
+      setMessage('Order status updated successfully!');
       setTimeout(() => setMessage(''), 4000);
     }
   };
 
-  // 🖨️ ইনভয়েস প্রিন্ট ফাংশন
   const handlePrint = () => {
     window.print();
   };
 
+  // 🔄 লোডিং স্টেট
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-text-secondary-light dark:text-text-secondary-dark">
@@ -91,16 +82,17 @@ export default function OrderDetails() {
     );
   }
 
-  if (!order) {
+  // ❌ অর্ডার না পাওয়া গেলে
+  if (!order || !order.id) {
     return (
       <div className="p-6 text-center">
         <h2 className="text-xl font-bold text-rose-500">Order Not Found</h2>
         <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">
-          The requested order ID does not exist or has been removed.
+          {error || `The requested order ID (${id}) does not exist or has been removed.`}
         </p>
         <Link
           to="/orders"
-          className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-accent-brand text-white rounded-lg text-sm font-medium"
+          className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-accent-brand text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all"
         >
           <ArrowLeft size={16} /> Back to Orders
         </Link>
@@ -108,15 +100,25 @@ export default function OrderDetails() {
     );
   }
 
-  // হিসাব-নিকাশ
-  const subtotal = parseFloat(order.price || 0);
-  const deliveryCharge = parseFloat(order.delivery_charge || 0);
+  // Safe Calculations
+  const subtotal = parseFloat(order.price || order.total || order.subtotal || 0);
+  const deliveryCharge = parseFloat(order.delivery_charge || order.shipping_cost || 0);
   const discount = parseFloat(order.discount || 0);
   const grandTotal = subtotal + deliveryCharge - discount;
 
+  const orderIdDisplay = order.id || order._id || id;
+
   return (
     <div className="space-y-6 p-4 md:p-6 print:p-0 print:bg-white print:text-black">
-      {/* 🟢 পেজ হেডার (প্রিন্টের সময় হাইড থাকবে) */}
+      {/* 🔴 Redux Error Alert */}
+      {error && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-2 print:hidden">
+          <AlertCircle size={18} className="shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* 🟢 Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <Link
@@ -128,15 +130,15 @@ export default function OrderDetails() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark">
-                Order #{order.id}
+                Order #{orderIdDisplay}
               </h1>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-brand/10 text-accent-brand font-semibold capitalize">
-                {order.status}
+                {order.status || 'Pending'}
               </span>
             </div>
             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5 flex items-center gap-1">
               <Calendar size={13} />
-              Placed on {new Date(order.created_at).toLocaleString('en-GB')}
+              Placed on {order.created_at ? new Date(order.created_at).toLocaleString('en-GB') : 'N/A'}
             </p>
           </div>
         </div>
@@ -150,7 +152,7 @@ export default function OrderDetails() {
         </button>
       </div>
 
-      {/* 🖨️ প্রিন্ট হেডলাইন (শুধুমাত্র প্রিন্ট মোডে দৃশ্যমান) */}
+      {/* 🖨️ Printable Invoice Title */}
       <div className="hidden print:block border-b pb-4 mb-6">
         <div className="flex justify-between items-center">
           <div>
@@ -158,15 +160,15 @@ export default function OrderDetails() {
             <p className="text-xs text-gray-600">Official Sales Invoice</p>
           </div>
           <div className="text-right">
-            <h2 className="text-lg font-bold">INVOICE #{order.id}</h2>
+            <h2 className="text-lg font-bold">INVOICE #{orderIdDisplay}</h2>
             <p className="text-xs text-gray-600">
-              Date: {new Date(order.created_at).toLocaleDateString('en-GB')}
+              Date: {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB') : 'N/A'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* ⚙️ স্ট্যাটাস আপডেট কন্ট্রোল বার (প্রিন্টের সময় হাইড থাকবে) */}
+      {/* ⚙️ Update Status Bar */}
       <div className="bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark shadow-sm print:hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -207,11 +209,9 @@ export default function OrderDetails() {
         )}
       </div>
 
-      {/* 📊 গ্রিড লেআউট (প্রিন্ট এবং রেগুলার ভিউ) */}
+      {/* 📊 Order Grid Details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* বাম পাশ: কাস্টমার ও ইনভয়েস আইটেম টেবিল (২ কলাম) */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 📦 আইটেমস টেবিল */}
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm print:border-gray-300">
             <div className="px-5 py-4 border-b border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
               <Package size={18} className="text-accent-brand" />
@@ -229,25 +229,23 @@ export default function OrderDetails() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light dark:divide-border-dark print:divide-gray-200">
-                  {/* যদি আপনার কাছে একাধিক আইটেমের অ্যারেই থাকে তবে ম্যাপ করতে পারেন */}
                   {order.items && order.items.length > 0 ? (
                     order.items.map((item, idx) => (
                       <tr key={idx}>
                         <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
-                          {item.name || item.product_name}
+                          {item.name || item.product_name || item.title}
                         </td>
-                        <td className="px-5 py-3.5 text-center">{item.quantity}</td>
-                        <td className="px-5 py-3.5 text-right">৳{item.price}</td>
+                        <td className="px-5 py-3.5 text-center">{item.quantity || item.qty || 1}</td>
+                        <td className="px-5 py-3.5 text-right">৳{item.price || 0}</td>
                         <td className="px-5 py-3.5 text-right font-semibold">
-                          ৳{(item.price * item.quantity).toLocaleString('en-BD')}
+                          ৳{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-BD')}
                         </td>
                       </tr>
                     ))
                   ) : (
-                    /* সিংগেল প্রডাক্ট অডার রেসপন্সের ক্ষেত্রে ফ্যালব্যাক */
                     <tr>
                       <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
-                        {order.product_name || 'Standard Order Item'}
+                        {order.product_name || order.product || 'Standard Order Item'}
                       </td>
                       <td className="px-5 py-3.5 text-center">{order.quantity || 1}</td>
                       <td className="px-5 py-3.5 text-right">৳{subtotal}</td>
@@ -260,7 +258,6 @@ export default function OrderDetails() {
               </table>
             </div>
 
-            {/* 💰 প্রাইস সামারি */}
             <div className="p-5 bg-background-light/50 dark:bg-background-dark/50 border-t border-border-light dark:border-border-dark space-y-2 text-sm print:bg-gray-50">
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark print:text-gray-700">
                 <span>Subtotal:</span>
@@ -286,9 +283,7 @@ export default function OrderDetails() {
           </div>
         </div>
 
-        {/* ডান পাশ: কাস্টমার ও ডেলিভারি ডিটেইলস (১ কলাম) */}
         <div className="space-y-6">
-          {/* 👤 কাস্টমার ইনফো কার্ড */}
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-gray-300">
             <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
               <User size={18} className="text-accent-brand" />
@@ -299,7 +294,7 @@ export default function OrderDetails() {
               <div>
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Name</p>
                 <p className="font-semibold text-text-primary-light dark:text-text-primary-dark">
-                  {order.first_name} {order.last_name}
+                  {order.first_name || order.firstName || ''} {order.last_name || order.lastName || 'Customer'}
                 </p>
               </div>
 
@@ -307,7 +302,7 @@ export default function OrderDetails() {
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Phone</p>
                 <p className="font-medium text-text-primary-light dark:text-text-primary-dark flex items-center gap-1.5 mt-0.5">
                   <Phone size={14} className="text-accent-brand" />
-                  {order.phone}
+                  {order.phone || 'N/A'}
                 </p>
               </div>
 
@@ -315,13 +310,12 @@ export default function OrderDetails() {
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Address</p>
                 <p className="font-medium text-text-primary-light dark:text-text-primary-dark flex items-start gap-1.5 mt-0.5">
                   <MapPin size={16} className="text-accent-brand shrink-0 mt-0.5" />
-                  <span>{order.address || 'N/A'}</span>
+                  <span>{order.address || order.shipping_address || 'N/A'}</span>
                 </p>
               </div>
             </div>
           </div>
 
-          {/* 💳 পেমেন্ট ও নোটস কার্ড */}
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-gray-300">
             <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
               <CreditCard size={18} className="text-accent-brand" />
@@ -332,7 +326,7 @@ export default function OrderDetails() {
               <div>
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Payment Method</p>
                 <p className="font-semibold capitalize text-text-primary-light dark:text-text-primary-dark">
-                  {order.payment_method || 'Cash on Delivery (COD)'}
+                  {order.payment_method || order.paymentMethod || 'Cash on Delivery (COD)'}
                 </p>
               </div>
 
@@ -347,12 +341,6 @@ export default function OrderDetails() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 🖨️ ইনভয়েস ফুটার (শুধুমাত্র প্রিন্ট মোডে আসবে) */}
-      <div className="hidden print:block pt-12 text-center text-xs text-gray-500 border-t mt-8">
-        <p>Thank you for shopping with TITTO CRM!</p>
-        <p className="mt-1">This is a computer-generated invoice and does not require a signature.</p>
       </div>
     </div>
   );
