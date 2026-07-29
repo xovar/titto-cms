@@ -27,25 +27,25 @@ export default function OrderDetails() {
   const { id } = useParams();
   const dispatch = useDispatch();
 
-  // 1️⃣ Redux State থেকে ডাটা নেওয়া
+  // 1️⃣ Redux State থেকে ডাটা নেওয়া
   const { selectedOrder, loading, updating, error } = useSelector((state) => state.orders);
 
   const [status, setStatus] = useState('');
   const [message, setMessage] = useState('');
 
-  // 2️⃣ URL parameter পরিবর্তন হলে Redux action দিয়ে অর্ডার ফেচ করা
+  // 2️⃣ URL parameter পরিবর্তন হলে Redux action দিয়ে অর্ডার ফেচ করা
   useEffect(() => {
     if (id && id !== 'undefined') {
       dispatch(fetchOrderById(id));
     }
 
-    // Unmount হওয়ার সময় স্লেকটেড অর্ডার ক্লিয়ার করা (যাতে পরেরবার আগের ডাটা না ফ্ল্যাশ করে)
+    // Unmount হওয়ার সময় সিলেক্টেড অর্ডার ক্লিয়ার করা
     return () => {
       dispatch(clearSelectedOrder());
     };
   }, [dispatch, id]);
 
-  // 3️⃣ backend Response Extract (যদি ব্যাকএন্ড ডাটা অবজেক্টে মোড়ানো থাকে)
+  // 3️⃣ backend Response Extract
   const order = selectedOrder?.data || selectedOrder?.order || selectedOrder;
 
   // Sync Local status state when order loads
@@ -82,8 +82,8 @@ export default function OrderDetails() {
     );
   }
 
-  // ❌ অর্ডার না পাওয়া গেলে
-  if (!order || !order.id) {
+  // ❌ অর্ডার না পাওয়া গেলে
+  if (!order || (!order.id && !order._id)) {
     return (
       <div className="p-6 text-center">
         <h2 className="text-xl font-bold text-rose-500">Order Not Found</h2>
@@ -100,13 +100,38 @@ export default function OrderDetails() {
     );
   }
 
-  // Safe Calculations
-  const subtotal = parseFloat(order.price || order.total || order.subtotal || 0);
-  const deliveryCharge = parseFloat(order.delivery_charge || order.shipping_cost || 0);
-  const discount = parseFloat(order.discount || 0);
-  const grandTotal = subtotal + deliveryCharge - discount;
+  // 🧮 Dynamic & Safe Calculations
+  const deliveryCharge = parseFloat(
+    order.deliveryCharge ?? order.delivery_charge ?? order.shipping_cost ?? 0
+  );
 
-  const orderIdDisplay = order.id || order._id || id;
+  // Calculate items sum if items array exists
+  const computedSubtotal = order.items && order.items.length > 0
+    ? order.items.reduce((acc, item) => acc + (parseFloat(item.price || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
+    : parseFloat(order.price || order.subtotal || order.total || 0);
+
+  const subtotal = computedSubtotal;
+
+  // Calculate item-level discount sum if root discount is not available
+  const calculatedItemsDiscount = order.items && order.items.length > 0
+    ? order.items.reduce((acc, item) => acc + (parseFloat(item.discount || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
+    : 0;
+
+  const discount = parseFloat(order.discount ?? order.total_discount ?? calculatedItemsDiscount ?? 0);
+
+  const grandTotal = order.grand_total ?? order.grandTotal ?? order.total_amount ?? (subtotal + deliveryCharge - discount);
+
+  const orderIdDisplay = order.id || order._id || order.order_id || id;
+
+  // Customer Full Name
+  const customerName = order.name || order.customer_name
+    ? (order.name || order.customer_name)
+    : `${order.first_name || order.firstName || ''} ${order.last_name || order.lastName || ''}`.trim() || 'Customer';
+
+  // Full Address
+  const fullAddress = [order.address || order.shipping_address, order.district, order.division]
+    .filter(Boolean)
+    .join(', ') || 'N/A';
 
   return (
     <div className="space-y-6 p-4 md:p-6 print:p-0 print:bg-white print:text-black">
@@ -230,25 +255,36 @@ export default function OrderDetails() {
                 </thead>
                 <tbody className="divide-y divide-border-light dark:divide-border-dark print:divide-gray-200">
                   {order.items && order.items.length > 0 ? (
-                    order.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
-                          {item.name || item.product_name || item.title}
-                        </td>
-                        <td className="px-5 py-3.5 text-center">{item.quantity || item.qty || 1}</td>
-                        <td className="px-5 py-3.5 text-right">৳{item.price || 0}</td>
-                        <td className="px-5 py-3.5 text-right font-semibold">
-                          ৳{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-BD')}
-                        </td>
-                      </tr>
-                    ))
+                    order.items.map((item, idx) => {
+                      const itemQty = item.quantity || item.qty || 1;
+                      const itemPrice = parseFloat(item.price || 0);
+                      const itemTotal = itemPrice * itemQty;
+
+                      return (
+                        <tr key={idx}>
+                          <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
+                            {item.name || item.product_name || item.title || item.product?.name || 'Product Item'}
+                            {item.discount > 0 && (
+                              <span className="block text-xs text-emerald-600 dark:text-emerald-400 font-normal">
+                                (Discount: ৳{item.discount}/item)
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-center">{itemQty}</td>
+                          <td className="px-5 py-3.5 text-right">৳{itemPrice.toLocaleString('en-BD')}</td>
+                          <td className="px-5 py-3.5 text-right font-semibold">
+                            ৳{itemTotal.toLocaleString('en-BD')}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
                         {order.product_name || order.product || 'Standard Order Item'}
                       </td>
                       <td className="px-5 py-3.5 text-center">{order.quantity || 1}</td>
-                      <td className="px-5 py-3.5 text-right">৳{subtotal}</td>
+                      <td className="px-5 py-3.5 text-right">৳{subtotal.toLocaleString('en-BD')}</td>
                       <td className="px-5 py-3.5 text-right font-semibold">
                         ৳{subtotal.toLocaleString('en-BD')}
                       </td>
@@ -268,7 +304,7 @@ export default function OrderDetails() {
                 <span>৳{deliveryCharge.toLocaleString('en-BD')}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
                   <span>Discount:</span>
                   <span>-৳{discount.toLocaleString('en-BD')}</span>
                 </div>
@@ -294,7 +330,7 @@ export default function OrderDetails() {
               <div>
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Name</p>
                 <p className="font-semibold text-text-primary-light dark:text-text-primary-dark">
-                  {order.first_name || order.firstName || ''} {order.last_name || order.lastName || 'Customer'}
+                  {customerName}
                 </p>
               </div>
 
@@ -310,7 +346,7 @@ export default function OrderDetails() {
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Address</p>
                 <p className="font-medium text-text-primary-light dark:text-text-primary-dark flex items-start gap-1.5 mt-0.5">
                   <MapPin size={16} className="text-accent-brand shrink-0 mt-0.5" />
-                  <span>{order.address || order.shipping_address || 'N/A'}</span>
+                  <span>{fullAddress}</span>
                 </p>
               </div>
             </div>

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-// ⚠️ আপনার ফোল্ডার স্ট্রাকচার অনুযায়ী orderSlice-এর সঠিক Path দিন
-import { fetchOrders, deleteOrder } from '../../store/slices/orderSlice';
+import { fetchOrders, deleteOrder } from '../../store/slices/orderSlice'; // ⚠️ আপনার সঠিক Path দিন
+import EditOrderModal from './EditOrderModal'; // 🟢 সেম ফোল্ডার থেকে Modal import করা হয়েছে
 import {
   Search,
   Eye,
+  Edit,
   Trash2,
   Clock,
   Truck,
@@ -24,6 +25,10 @@ export default function OrderList() {
 
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 🟢 Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+
   // 1️⃣ Redux Store থেকে State নিয়ে আসা
   const { items, loading, error } = useSelector((state) => state.orders);
 
@@ -39,6 +44,18 @@ export default function OrderList() {
     }
   };
 
+  // ✏️ Edit Modal ওপেন করার হ্যান্ডলার
+  const handleEditClick = (order) => {
+    setSelectedOrder(order);
+    setIsEditModalOpen(true);
+  };
+
+  // 🔒 Edit Modal ক্লোজ করার হ্যান্ডলার
+  const handleCloseModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedOrder(null);
+  };
+
   // 💡 Safe Array Extractor (যদি ব্যাকএন্ড থেকে Array-এর বদলে Object আসে)
   const safeOrdersList = Array.isArray(items)
     ? items
@@ -50,7 +67,7 @@ export default function OrderList() {
     const lastName = order.last_name || order.lastName || '';
     const name = `${firstName} ${lastName}`.toLowerCase();
     const phone = order.phone || '';
-    const orderId = order.id?.toString().toLowerCase() || '';
+    const orderId = order.id?.toString().toLowerCase() || order._id?.toString().toLowerCase() || '';
     const search = searchTerm.toLowerCase();
 
     return orderId.includes(search) || name.includes(search) || phone.includes(search);
@@ -194,19 +211,20 @@ export default function OrderList() {
               <tbody className="divide-y divide-border-light dark:divide-border-dark">
                 {filteredOrders.map((order) => {
                   const price = parseFloat(order.price || order.total || 0);
-                  const deliveryCharge = parseFloat(order.delivery_charge || 0);
+                  const deliveryCharge = parseFloat(order.delivery_charge || order.deliveryCharge || 0);
                   const totalPrice = price + deliveryCharge;
 
                   const firstName = order.first_name || order.firstName || 'Customer';
                   const lastName = order.last_name || order.lastName || '';
+                  const orderId = order.id || order._id;
 
                   return (
                     <tr
-                      key={order.id}
+                      key={orderId}
                       className="hover:bg-background-light/50 dark:hover:bg-background-dark/50 transition-colors"
                     >
                       <td className="px-5 py-4 font-mono text-xs font-bold text-accent-brand">
-                        #{order.id}
+                        #{orderId}
                       </td>
                       <td className="px-5 py-4">
                         <div className="font-medium text-text-primary-light dark:text-text-primary-dark">
@@ -223,8 +241,8 @@ export default function OrderList() {
                       <td className="px-5 py-4 text-xs text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Calendar size={12} />
-                          {order.created_at
-                            ? new Date(order.created_at).toLocaleDateString('en-GB', {
+                          {order.created_at || order.createdAt
+                            ? new Date(order.created_at || order.createdAt).toLocaleDateString('en-GB', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',
@@ -233,16 +251,29 @@ export default function OrderList() {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right space-x-1">
+                        {/* 👁️ View Details Option */}
                         <Link
-                          to={`/orders/${order.id}`}
+                          to={`/orders/${orderId}`}
                           className="inline-flex p-1.5 rounded-md hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-accent-brand transition-colors"
                           title="View Details"
                         >
                           <Eye size={18} />
                         </Link>
 
+                        {/* ✏️ Edit Order Option (Opens Modal) */}
                         <button
-                          onClick={() => handleDelete(order.id)}
+                          type="button"
+                          onClick={() => handleEditClick(order)}
+                          className="inline-flex p-1.5 rounded-md hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-amber-500 transition-colors"
+                          title="Edit Order"
+                        >
+                          <Edit size={18} />
+                        </button>
+
+                        {/* 🗑️ Delete Order Option */}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(orderId)}
                           className="inline-flex p-1.5 rounded-md hover:bg-rose-500/10 text-rose-500 transition-colors"
                           title="Delete Order"
                         >
@@ -257,6 +288,13 @@ export default function OrderList() {
           </div>
         )}
       </div>
+
+      {/* 🔴 Edit Order Modal Component */}
+      <EditOrderModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseModal}
+        order={selectedOrder}
+      />
     </div>
   );
 }

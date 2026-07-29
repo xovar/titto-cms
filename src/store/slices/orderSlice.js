@@ -50,7 +50,7 @@ export const createOrder = createAsyncThunk(
   }
 );
 
-// ⚡ Update Order Status Thunk
+// ⚡ Update Order Status Thunk (শুধুমাত্র স্ট্যাটাস বদলানোর জন্য)
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateStatus',
   async ({ id, status }, { rejectWithValue }) => {
@@ -59,6 +59,19 @@ export const updateOrderStatus = createAsyncThunk(
       return { id, status, data: response.data };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to update order status'));
+    }
+  }
+);
+
+// ⚡ Update Entire Order Thunk (নতুন যুক্ত করা হয়েছে: সব ডাটা এডিট করার জন্য)
+export const updateOrder = createAsyncThunk(
+  'orders/update',
+  async ({ id, ...orderData }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/orders/${id}`, orderData);
+      return { id, updatedData: orderData, response: response.data };
+    } catch (error) {
+      return rejectWithValue(extractErrorMsg(error, 'Failed to update order details'));
     }
   }
 );
@@ -150,18 +163,51 @@ const orderSlice = createSlice({
         state.updating = false;
         const { id, status } = action.payload;
         
-        // Update item in list
+        // List item update
         const index = state.items.findIndex((item) => item.id === id);
         if (index !== -1) {
           state.items[index].status = status;
         }
 
-        // Update selected order if open
-        if (state.selectedOrder && state.selectedOrder.id === id) {
-          state.selectedOrder.status = status;
+        // Selected order update
+        if (state.selectedOrder) {
+          if (state.selectedOrder.id === id) {
+            state.selectedOrder.status = status;
+          } else if (state.selectedOrder.data?.id === id) {
+            state.selectedOrder.data.status = status;
+          }
         }
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
+        state.updating = false;
+        state.error = action.payload;
+      })
+
+      // ── Update Full Order ─────────────────────────────────
+      .addCase(updateOrder.pending, (state) => {
+        state.updating = true;
+        state.error = null;
+      })
+      .addCase(updateOrder.fulfilled, (state, action) => {
+        state.updating = false;
+        const { id, updatedData } = action.payload;
+
+        // ১. অর্ডারের লিস্টে পরিবর্তন সিঙ্ক করা
+        const index = state.items.findIndex((item) => item.id === id);
+        if (index !== -1) {
+          state.items[index] = { ...state.items[index], ...updatedData };
+        }
+
+        // ২. কারেন্ট সিলেক্টেড অর্ডারে তথ্য সিঙ্ক করা
+        if (state.selectedOrder) {
+          if (state.selectedOrder.id === id) {
+            state.selectedOrder = { ...state.selectedOrder, ...updatedData };
+          } else if (state.selectedOrder.data?.id === id) {
+            state.selectedOrder.data = { ...state.selectedOrder.data, ...updatedData };
+          }
+        }
+      })
+      .addCase(updateOrder.rejected, (state, action) => {
         state.updating = false;
         state.error = action.payload;
       })
