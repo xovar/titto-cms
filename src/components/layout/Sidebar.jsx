@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom'; // 👈 Link ইমপোর্ট করা হয়েছে
+import { useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom"; // 👈 Link ইমপোর্ট করা হয়েছে
 import {
   LayoutDashboard,
   Package,
@@ -14,32 +14,33 @@ import {
   Clock,
   CheckCircle2,
   Truck,
-} from 'lucide-react';
+} from "lucide-react";
+import logo from "../../assets/titto.logo.png";
 
 // Product Sub Links
 const productSubLinks = [
-  { to: '/products', label: 'Product List', icon: List },
-  { to: '/products/add', label: 'Add New', icon: PlusCircle },
-  { to: '/products/categories', label: 'Categories', icon: Tags },
-  { to: '/products/colors', label: 'Colors', icon: Palette },
-  { to: '/products/brands', label: 'Brands', icon: Award },
+  { to: "/products", label: "Product List", icon: List },
+  { to: "/products/add", label: "Add New", icon: PlusCircle },
+  { to: "/products/categories", label: "Categories", icon: Tags },
+  { to: "/products/colors", label: "Colors", icon: Palette },
+  { to: "/products/brands", label: "Brands", icon: Award },
 ];
 
 // 🛍️ Order Sub Links
 const orderSubLinks = [
-  { to: '/orders', label: 'All Orders', icon: List },
-  { to: '/orders/add', label: 'Create Order', icon: PlusCircle },
-  { to: '/orders?status=pending', label: 'Pending', icon: Clock },
-  { to: '/orders?status=shipped', label: 'Shipped', icon: Truck },
-  { to: '/orders?status=delivered', label: 'Delivered', icon: CheckCircle2 },
+  { to: "/orders", label: "All Orders", icon: List },
+  { to: "/orders/add", label: "Create Order", icon: PlusCircle },
+  { to: "/orders?status=pending", label: "Pending", icon: Clock },
+  { to: "/orders?status=shipped", label: "Shipped", icon: Truck },
+  { to: "/orders?status=delivered", label: "Delivered", icon: CheckCircle2 },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
   // Route Trackers
-  const isProductRoute = location.pathname.startsWith('/products');
-  const isOrderRoute = location.pathname.startsWith('/orders');
+  const isProductRoute = location.pathname.startsWith("/products");
+  const isOrderRoute = location.pathname.startsWith("/orders");
 
   // Accordion Expand States
   const [productsExpanded, setProductsExpanded] = useState(isProductRoute);
@@ -63,18 +64,15 @@ export default function Sidebar({ isOpen, onClose }) {
           border-r border-border-light dark:border-border-dark
           transition-transform duration-300 ease-in-out
           lg:translate-x-0 lg:static lg:z-auto
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
         {/* Logo / Brand */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-border-light dark:border-border-dark shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-accent-brand flex items-center justify-center">
-              <Package size={18} className="text-white" />
+        <div className="flex cursor-pointer items-center justify-between h-16 px-5 border-b border-border-light dark:border-border-dark shrink-0">
+          <div className="mx-auto">
+            <div className="z-50 shrink-0">
+              <img src={logo} width="100px" alt="Titto Logo" />
             </div>
-            <span className="text-lg font-semibold text-text-primary-light dark:text-text-primary-dark tracking-tight">
-              TITTO CRM
-            </span>
           </div>
           <button
             onClick={onClose}
@@ -90,7 +88,9 @@ export default function Sidebar({ isOpen, onClose }) {
           <NavLink
             to="/"
             end
-            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "active" : ""}`
+            }
             onClick={onClose}
           >
             <LayoutDashboard size={20} />
@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div>
             <button
               onClick={() => setProductsExpanded(!productsExpanded)}
-              className={`sidebar-link w-full justify-between ${isProductRoute ? 'active' : ''}`}
+              className={`sidebar-link w-full justify-between ${isProductRoute ? "active" : ""}`}
             >
               <div className="flex items-center gap-3">
                 <Package size={20} />
@@ -109,13 +109,13 @@ export default function Sidebar({ isOpen, onClose }) {
               </div>
               <ChevronDown
                 size={16}
-                className={`transition-transform duration-200 ${productsExpanded ? 'rotate-180' : ''}`}
+                className={`transition-transform duration-200 ${productsExpanded ? "rotate-180" : ""}`}
               />
             </button>
 
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                productsExpanded ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+                productsExpanded ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
               }`}
             >
               <div className="ml-4 pl-3 border-l border-border-light dark:border-border-dark space-y-0.5 mt-1">
@@ -127,7 +127,7 @@ export default function Sidebar({ isOpen, onClose }) {
                       to={link.to}
                       end
                       className={({ isActive }) =>
-                        `sidebar-link text-[0.8125rem] py-2 ${isActive ? 'active' : ''}`
+                        `sidebar-link text-[0.8125rem] py-2 ${isActive ? "active" : ""}`
                       }
                       onClick={onClose}
                     >
@@ -144,7 +144,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div>
             <button
               onClick={() => setOrdersExpanded(!ordersExpanded)}
-              className={`sidebar-link w-full justify-between ${isOrderRoute ? 'active' : ''}`}
+              className={`sidebar-link w-full justify-between ${isOrderRoute ? "active" : ""}`}
             >
               <div className="flex items-center gap-3">
                 <ShoppingBag size={20} />
@@ -152,13 +152,13 @@ export default function Sidebar({ isOpen, onClose }) {
               </div>
               <ChevronDown
                 size={16}
-                className={`transition-transform duration-200 ${ordersExpanded ? 'rotate-180' : ''}`}
+                className={`transition-transform duration-200 ${ordersExpanded ? "rotate-180" : ""}`}
               />
             </button>
 
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                ordersExpanded ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+                ordersExpanded ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
               }`}
             >
               <div className="ml-4 pl-3 border-l border-border-light dark:border-border-dark space-y-0.5 mt-1">
@@ -175,7 +175,7 @@ export default function Sidebar({ isOpen, onClose }) {
                       key={link.to}
                       to={link.to}
                       className={`sidebar-link text-[0.8125rem] py-2 ${
-                        isLinkActive ? 'active' : ''
+                        isLinkActive ? "active" : ""
                       }`}
                       onClick={onClose}
                     >

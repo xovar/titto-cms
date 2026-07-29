@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchOrders, deleteOrder } from '../../store/slices/orderSlice'; // ⚠️ আপনার সঠিক Path দিন
-import EditOrderModal from './EditOrderModal'; // 🟢 সেম ফোল্ডার থেকে Modal import করা হয়েছে
+import { fetchOrders, deleteOrder } from '../../store/slices/orderSlice';
+import EditOrderModal from './EditOrderModal';
 import {
   Search,
   Eye,
@@ -16,12 +16,16 @@ import {
   Calendar,
   Package,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function OrderList() {
   const dispatch = useDispatch();
   const [searchParams, setSearchParams] = useSearchParams();
+
   const currentStatus = searchParams.get('status') || 'all';
+  const currentPage = parseInt(searchParams.get('page')) || 1;
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -29,13 +33,13 @@ export default function OrderList() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // 1️⃣ Redux Store থেকে State নিয়ে আসা
-  const { items, loading, error } = useSelector((state) => state.orders);
+  // Redux Store থেকে State নিয়ে আসা
+  const { items, pagination, loading, error } = useSelector((state) => state.orders);
 
-  // 2️⃣ URL-এর status পরিবর্তন হলে বা পেজ লোড হলে Redux Action Dispatch করা
+  // URL-এর status বা page পরিবর্তন হলে Redux Action Dispatch করা
   useEffect(() => {
-    dispatch(fetchOrders(currentStatus));
-  }, [dispatch, currentStatus]);
+    dispatch(fetchOrders({ page: currentPage, limit: 10, status: currentStatus }));
+  }, [dispatch, currentStatus, currentPage]);
 
   // 🗑️ Redux এর মাধ্যমে অর্ডার ডিলিট
   const handleDelete = (id) => {
@@ -56,18 +60,25 @@ export default function OrderList() {
     setSelectedOrder(null);
   };
 
-  // 💡 Safe Array Extractor (যদি ব্যাকএন্ড থেকে Array-এর বদলে Object আসে)
-  const safeOrdersList = Array.isArray(items)
-    ? items
-    : items?.orders || items?.data || [];
+  // 📄 Page Change Handler
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination?.totalPages) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('page', newPage);
+      if (currentStatus === 'all') {
+        newParams.delete('status');
+      }
+      setSearchParams(newParams);
+    }
+  };
 
-  // 🔍 সার্চ ফিল্টারিং (Client-side Search)
-  const filteredOrders = safeOrdersList.filter((order) => {
-    const firstName = order.first_name || order.firstName || '';
-    const lastName = order.last_name || order.lastName || '';
+  // 🔍 স্ট্যাটাস এবং সার্চ ফিল্টার
+  const filteredOrders = (items || []).filter((order) => {
+    const firstName = order.firstName || order.first_name || '';
+    const lastName = order.lastName || order.last_name || '';
     const name = `${firstName} ${lastName}`.toLowerCase();
     const phone = order.phone || '';
-    const orderId = order.id?.toString().toLowerCase() || order._id?.toString().toLowerCase() || '';
+    const orderId = (order.id || order._id || '').toString().toLowerCase();
     const search = searchTerm.toLowerCase();
 
     return orderId.includes(search) || name.includes(search) || phone.includes(search);
@@ -142,7 +153,7 @@ export default function OrderList() {
               <button
                 key={tab}
                 onClick={() =>
-                  setSearchParams(tab === 'all' ? {} : { status: tab })
+                  setSearchParams(tab === 'all' ? {} : { status: tab, page: '1' })
                 }
                 className={`px-3.5 py-1.5 rounded-lg font-medium capitalize transition-all whitespace-nowrap ${
                   currentStatus === tab
@@ -173,7 +184,7 @@ export default function OrderList() {
           </div>
 
           <button
-            onClick={() => dispatch(fetchOrders(currentStatus))}
+            onClick={() => dispatch(fetchOrders({ page: currentPage, limit: 10, status: currentStatus }))}
             className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-background-dark transition-all text-text-secondary-light dark:text-text-secondary-dark w-full sm:w-auto justify-center"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -210,12 +221,47 @@ export default function OrderList() {
               </thead>
               <tbody className="divide-y divide-border-light dark:divide-border-dark">
                 {filteredOrders.map((order) => {
-                  const price = parseFloat(order.price || order.total || 0);
-                  const deliveryCharge = parseFloat(order.delivery_charge || order.deliveryCharge || 0);
-                  const totalPrice = price + deliveryCharge;
+                  const deliveryCharge = parseFloat(
+                    order.deliveryCharge ?? order.delivery_charge ?? 0
+                  );
 
-                  const firstName = order.first_name || order.firstName || 'Customer';
-                  const lastName = order.last_name || order.lastName || '';
+                  // 🧮 Subtotal calculation
+                  const computedSubtotal = order.items && order.items.length > 0
+                    ? order.items.reduce((acc, item) => acc + (parseFloat(item.price || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
+                    : parseFloat(order.price || 0);
+
+                  const subtotal = computedSubtotal;
+
+                  // 🎯 Percentage (%) Based Discount Calculation
+                  const discountAmount = (() => {
+                    if (order.items && order.items.length > 0) {
+                      return order.items.reduce((acc, item) => {
+                        const itemPrice = parseFloat(item.price || 0);
+                        const itemQty = parseFloat(item.quantity || item.qty || 1);
+                        const itemDiscVal = parseFloat(item.discount || 0);
+                        const type = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
+
+                        if (type === 'percent' || type === 'percentage') {
+                          return acc + ((itemPrice * itemDiscVal) / 100) * itemQty;
+                        }
+                        return acc + (itemDiscVal * itemQty);
+                      }, 0);
+                    }
+
+                    const orderDiscVal = parseFloat(order.discount || 0);
+                    const type = order.discount_type || order.discountType || 'percent';
+
+                    if (type === 'percent' || type === 'percentage') {
+                      return (subtotal * orderDiscVal) / 100;
+                    }
+                    return orderDiscVal;
+                  })();
+
+                  // Grand Total = Subtotal + Delivery Charge - Discount
+                  const totalPrice = Math.max(0, subtotal + deliveryCharge - discountAmount);
+
+                  const firstName = order.firstName || order.first_name || 'Customer';
+                  const lastName = order.lastName || order.last_name || '';
                   const orderId = order.id || order._id;
 
                   return (
@@ -236,13 +282,18 @@ export default function OrderList() {
                       </td>
                       <td className="px-5 py-4 font-semibold text-text-primary-light dark:text-text-primary-dark">
                         ৳{totalPrice.toLocaleString('en-BD')}
+                        {discountAmount > 0 && (
+                          <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
+                            (-৳{discountAmount.toLocaleString('en-BD')} off)
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4">{getStatusBadge(order.status)}</td>
                       <td className="px-5 py-4 text-xs text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <Calendar size={12} />
-                          {order.created_at || order.createdAt
-                            ? new Date(order.created_at || order.createdAt).toLocaleDateString('en-GB', {
+                          {order.createdAt || order.created_at
+                            ? new Date(order.createdAt || order.created_at).toLocaleDateString('en-GB', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',
@@ -285,6 +336,35 @@ export default function OrderList() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* 📄 Pagination Footer */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="p-4 border-t border-border-light dark:border-border-dark flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-text-secondary-light dark:text-text-secondary-dark">
+            <div>
+              Showing page <span className="font-semibold">{pagination.page}</span> of{' '}
+              <span className="font-semibold">{pagination.totalPages}</span> (Total{' '}
+              <span className="font-semibold">{pagination.total}</span> orders)
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+                className="px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-background-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                <ChevronLeft size={14} />
+                Previous
+              </button>
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page >= pagination.totalPages}
+                className="px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-background-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                Next
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         )}
       </div>

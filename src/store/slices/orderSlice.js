@@ -10,14 +10,23 @@ const extractErrorMsg = (error, defaultMsg) => {
 
 // ── Order Thunks ────────────────────────────────────────────────────────────
 
-// ⚡ Fetch All Orders (সাপোর্টস অপশনাল ফিল্টারিং/স্ট্যাটাস)
+// ⚡ Fetch All Orders (সাপোর্টস পেজিনেশন এবং ফিল্টারিং)
+// ব্যবহার: dispatch(fetchOrders({ page: 1, limit: 10, status: 'pending' })) অথবা dispatch(fetchOrders('pending'))
 export const fetchOrders = createAsyncThunk(
   'orders/fetchAll',
-  async (status, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const url = status && status !== 'all' ? `/orders?status=${status}` : '/orders';
+      // যদি স্ট্রিং হিসেবে 'pending' বা 'all' পাঠানো হয়
+      const queryParams = typeof params === 'string' ? { status: params } : params;
+      const { page = 1, limit = 10, status } = queryParams;
+
+      let url = `/orders?page=${page}&limit=${limit}`;
+      if (status && status !== 'all') {
+        url += `&status=${status}`;
+      }
+
       const response = await axiosInstance.get(url);
-      return response.data;
+      return response.data; // রেসপন্স ফরম্যাট: { data: [...], pagination: {...} }
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to fetch orders'));
     }
@@ -50,12 +59,12 @@ export const createOrder = createAsyncThunk(
   }
 );
 
-// ⚡ Update Order Status Thunk (শুধুমাত্র স্ট্যাটাস বদলানোর জন্য)
+// ⚡ Update Order Status Thunk (HTTP Method: PUT)
 export const updateOrderStatus = createAsyncThunk(
   'orders/updateStatus',
   async ({ id, status }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.patch(`/orders/${id}/status`, { status });
+      const response = await axiosInstance.put(`/orders/${id}/status`, { status });
       return { id, status, data: response.data };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to update order status'));
@@ -63,7 +72,7 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
-// ⚡ Update Entire Order Thunk (নতুন যুক্ত করা হয়েছে: সব ডাটা এডিট করার জন্য)
+// ⚡ Update Entire Order Thunk
 export const updateOrder = createAsyncThunk(
   'orders/update',
   async ({ id, ...orderData }, { rejectWithValue }) => {
@@ -95,6 +104,12 @@ const orderSlice = createSlice({
   name: 'orders',
   initialState: {
     items: [],
+    pagination: {
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    },
     selectedOrder: null, // সিঙ্গেল অর্ডার দেখার জন্য
     loading: false,
     updating: false,
@@ -117,7 +132,14 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload;
+        // ব্যাকএন্ডের নতুন ফরম্যাট { data: [...], pagination: {...} } অনুযায়ী রিড করা
+        state.items = action.payload.data || [];
+        state.pagination = action.payload.pagination || {
+          total: 0,
+          page: 1,
+          limit: 10,
+          totalPages: 0,
+        };
       })
       .addCase(fetchOrders.rejected, (state, action) => {
         state.loading = false;
@@ -143,11 +165,8 @@ const orderSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(createOrder.fulfilled, (state, action) => {
+      .addCase(createOrder.fulfilled, (state) => {
         state.loading = false;
-        if (action.payload && typeof action.payload === 'object') {
-          state.items.unshift(action.payload);
-        }
       })
       .addCase(createOrder.rejected, (state, action) => {
         state.loading = false;

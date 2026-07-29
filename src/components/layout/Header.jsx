@@ -122,7 +122,7 @@ export default function Header({ onMenuToggle }) {
                   Admin User
                 </p>
                 <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">
-                  admin@crmpro.com
+                  tittowebsiteadmin@gmail.com
                 </p>
               </div>
 

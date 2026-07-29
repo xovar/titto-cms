@@ -5,7 +5,7 @@ import {
   fetchOrderById,
   updateOrderStatus,
   clearSelectedOrder,
-} from '../../store/slices/orderSlice'; // ⚠️ আপনার ফোল্ডার স্ট্রাকচার অনুযায়ী Path চেক করুন
+} from '../../store/slices/orderSlice';
 
 import {
   ArrowLeft,
@@ -27,35 +27,30 @@ export default function OrderDetails() {
   const { id } = useParams();
   const dispatch = useDispatch();
 
-  // 1️⃣ Redux State থেকে ডাটা নেওয়া
+  // Redux State থেকে ডাটা নেওয়া
   const { selectedOrder, loading, updating, error } = useSelector((state) => state.orders);
 
   const [status, setStatus] = useState('');
   const [message, setMessage] = useState('');
 
-  // 2️⃣ URL parameter পরিবর্তন হলে Redux action দিয়ে অর্ডার ফেচ করা
   useEffect(() => {
     if (id && id !== 'undefined') {
       dispatch(fetchOrderById(id));
     }
 
-    // Unmount হওয়ার সময় সিলেক্টেড অর্ডার ক্লিয়ার করা
     return () => {
       dispatch(clearSelectedOrder());
     };
   }, [dispatch, id]);
 
-  // 3️⃣ backend Response Extract
   const order = selectedOrder?.data || selectedOrder?.order || selectedOrder;
 
-  // Sync Local status state when order loads
   useEffect(() => {
     if (order?.status) {
       setStatus(order.status);
     }
   }, [order?.status]);
 
-  // ✏️ Redux এর মাধ্যমে স্ট্যাটাস আপডেট
   const handleStatusUpdate = async () => {
     if (!id || status === order?.status) return;
 
@@ -72,7 +67,6 @@ export default function OrderDetails() {
     window.print();
   };
 
-  // 🔄 লোডিং স্টেট
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-text-secondary-light dark:text-text-secondary-dark">
@@ -82,7 +76,6 @@ export default function OrderDetails() {
     );
   }
 
-  // ❌ অর্ডার না পাওয়া গেলে
   if (!order || (!order.id && !order._id)) {
     return (
       <div className="p-6 text-center">
@@ -100,42 +93,62 @@ export default function OrderDetails() {
     );
   }
 
-  // 🧮 Dynamic & Safe Calculations
+  // 🧮 Subtotal & Delivery Charge Calculation
   const deliveryCharge = parseFloat(
-    order.deliveryCharge ?? order.delivery_charge ?? order.shipping_cost ?? 0
+    order.deliveryCharge ?? order.delivery_charge ?? 0
   );
 
-  // Calculate items sum if items array exists
   const computedSubtotal = order.items && order.items.length > 0
     ? order.items.reduce((acc, item) => acc + (parseFloat(item.price || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
-    : parseFloat(order.price || order.subtotal || order.total || 0);
+    : parseFloat(order.price || 0);
 
   const subtotal = computedSubtotal;
 
-  // Calculate item-level discount sum if root discount is not available
-  const calculatedItemsDiscount = order.items && order.items.length > 0
-    ? order.items.reduce((acc, item) => acc + (parseFloat(item.discount || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
-    : 0;
+  // 🎯 Percentage (%) Based Discount Calculation
+  const discountAmount = (() => {
+    if (order.items && order.items.length > 0) {
+      return order.items.reduce((acc, item) => {
+        const itemPrice = parseFloat(item.price || 0);
+        const itemQty = parseFloat(item.quantity || item.qty || 1);
+        const itemDiscVal = parseFloat(item.discount || 0);
+        const type = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
 
-  const discount = parseFloat(order.discount ?? order.total_discount ?? calculatedItemsDiscount ?? 0);
+        // Check if discount is percentage or fixed amount
+        if (type === 'percent' || type === 'percentage') {
+          return acc + ((itemPrice * itemDiscVal) / 100) * itemQty;
+        }
+        return acc + (itemDiscVal * itemQty);
+      }, 0);
+    }
 
-  const grandTotal = order.grand_total ?? order.grandTotal ?? order.total_amount ?? (subtotal + deliveryCharge - discount);
+    const orderDiscVal = parseFloat(order.discount || 0);
+    const type = order.discount_type || order.discountType || 'percent';
 
-  const orderIdDisplay = order.id || order._id || order.order_id || id;
+    if (type === 'percent' || type === 'percentage') {
+      return (subtotal * orderDiscVal) / 100;
+    }
+    return orderDiscVal;
+  })();
 
-  // Customer Full Name
-  const customerName = order.name || order.customer_name
-    ? (order.name || order.customer_name)
-    : `${order.first_name || order.firstName || ''} ${order.last_name || order.lastName || ''}`.trim() || 'Customer';
+  // Grand Total = Subtotal + Delivery Charge - Calculated Discount
+  const grandTotal = Math.max(0, subtotal + deliveryCharge - discountAmount);
 
-  // Full Address
-  const fullAddress = [order.address || order.shipping_address, order.district, order.division]
+  const orderIdDisplay = order.id || order._id || id;
+
+  const customerName = (order.firstName || order.first_name || order.lastName || order.last_name)
+    ? `${order.firstName || order.first_name || ''} ${order.lastName || order.last_name || ''}`.trim()
+    : (order.name || order.customer_name || 'Customer');
+
+  const fullAddress = [
+    order.address,
+    order.cityDistrict || order.city_district || order.district,
+    order.postalCode || order.postal_code,
+  ]
     .filter(Boolean)
     .join(', ') || 'N/A';
 
   return (
     <div className="space-y-6 p-4 md:p-6 print:p-0 print:bg-white print:text-black">
-      {/* 🔴 Redux Error Alert */}
       {error && (
         <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-2 print:hidden">
           <AlertCircle size={18} className="shrink-0" />
@@ -143,7 +156,7 @@ export default function OrderDetails() {
         </div>
       )}
 
-      {/* 🟢 Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <Link
@@ -163,7 +176,7 @@ export default function OrderDetails() {
             </div>
             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5 flex items-center gap-1">
               <Calendar size={13} />
-              Placed on {order.created_at ? new Date(order.created_at).toLocaleString('en-GB') : 'N/A'}
+              Placed on {order.createdAt || order.created_at ? new Date(order.createdAt || order.created_at).toLocaleString('en-GB') : 'N/A'}
             </p>
           </div>
         </div>
@@ -177,7 +190,7 @@ export default function OrderDetails() {
         </button>
       </div>
 
-      {/* 🖨️ Printable Invoice Title */}
+      {/* Printable Title */}
       <div className="hidden print:block border-b pb-4 mb-6">
         <div className="flex justify-between items-center">
           <div>
@@ -187,13 +200,13 @@ export default function OrderDetails() {
           <div className="text-right">
             <h2 className="text-lg font-bold">INVOICE #{orderIdDisplay}</h2>
             <p className="text-xs text-gray-600">
-              Date: {order.created_at ? new Date(order.created_at).toLocaleDateString('en-GB') : 'N/A'}
+              Date: {order.createdAt || order.created_at ? new Date(order.createdAt || order.created_at).toLocaleDateString('en-GB') : 'N/A'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* ⚙️ Update Status Bar */}
+      {/* Update Status Bar */}
       <div className="bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark shadow-sm print:hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -234,7 +247,7 @@ export default function OrderDetails() {
         )}
       </div>
 
-      {/* 📊 Order Grid Details */}
+      {/* Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm print:border-gray-300">
@@ -256,19 +269,28 @@ export default function OrderDetails() {
                 <tbody className="divide-y divide-border-light dark:divide-border-dark print:divide-gray-200">
                   {order.items && order.items.length > 0 ? (
                     order.items.map((item, idx) => {
-                      const itemQty = item.quantity || item.qty || 1;
+                      const itemQty = Number(item.quantity || item.qty || 1);
                       const itemPrice = parseFloat(item.price || 0);
                       const itemTotal = itemPrice * itemQty;
+                      const itemDiscountVal = parseFloat(item.discount || 0);
+                      const itemDiscType = item.discount_type || item.discountType || 'percent';
 
                       return (
                         <tr key={idx}>
                           <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
-                            {item.name || item.product_name || item.title || item.product?.name || 'Product Item'}
-                            {item.discount > 0 && (
-                              <span className="block text-xs text-emerald-600 dark:text-emerald-400 font-normal">
-                                (Discount: ৳{item.discount}/item)
-                              </span>
-                            )}
+                            <div>
+                              {item.name || item.product_name || 'Product Item'}
+                              {(item.color || item.size) && (
+                                <span className="block text-xs text-text-secondary-light dark:text-text-secondary-dark font-normal">
+                                  {item.color && `Color: ${item.color}`} {item.color && item.size && '|'} {item.size && `Size: ${item.size}`}
+                                </span>
+                              )}
+                              {itemDiscountVal > 0 && (
+                                <span className="block text-xs text-emerald-600 dark:text-emerald-400 font-normal">
+                                  (Discount: {itemDiscType === 'flat' ? `৳${itemDiscountVal}` : `${itemDiscountVal}%`})
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-5 py-3.5 text-center">{itemQty}</td>
                           <td className="px-5 py-3.5 text-right">৳{itemPrice.toLocaleString('en-BD')}</td>
@@ -281,9 +303,9 @@ export default function OrderDetails() {
                   ) : (
                     <tr>
                       <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
-                        {order.product_name || order.product || 'Standard Order Item'}
+                        Standard Order Item
                       </td>
-                      <td className="px-5 py-3.5 text-center">{order.quantity || 1}</td>
+                      <td className="px-5 py-3.5 text-center">1</td>
                       <td className="px-5 py-3.5 text-right">৳{subtotal.toLocaleString('en-BD')}</td>
                       <td className="px-5 py-3.5 text-right font-semibold">
                         ৳{subtotal.toLocaleString('en-BD')}
@@ -294,6 +316,7 @@ export default function OrderDetails() {
               </table>
             </div>
 
+            {/* Price Summary */}
             <div className="p-5 bg-background-light/50 dark:bg-background-dark/50 border-t border-border-light dark:border-border-dark space-y-2 text-sm print:bg-gray-50">
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark print:text-gray-700">
                 <span>Subtotal:</span>
@@ -303,10 +326,10 @@ export default function OrderDetails() {
                 <span>Delivery Charge:</span>
                 <span>৳{deliveryCharge.toLocaleString('en-BD')}</span>
               </div>
-              {discount > 0 && (
+              {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
                   <span>Discount:</span>
-                  <span>-৳{discount.toLocaleString('en-BD')}</span>
+                  <span>-৳{discountAmount.toLocaleString('en-BD')}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base text-text-primary-light dark:text-text-primary-dark print:text-black pt-2 border-t border-border-light dark:border-border-dark">
@@ -319,6 +342,7 @@ export default function OrderDetails() {
           </div>
         </div>
 
+        {/* Right Sidebar: Customer & Payment */}
         <div className="space-y-6">
           <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-gray-300">
             <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
@@ -343,7 +367,7 @@ export default function OrderDetails() {
               </div>
 
               <div>
-                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Address</p>
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Shipping Address</p>
                 <p className="font-medium text-text-primary-light dark:text-text-primary-dark flex items-start gap-1.5 mt-0.5">
                   <MapPin size={16} className="text-accent-brand shrink-0 mt-0.5" />
                   <span>{fullAddress}</span>
