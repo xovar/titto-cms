@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom'; // 👈 useNavigate ইমপোর্ট করা হলো
+import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus } from 'lucide-react';
 import { fetchProducts, deleteProduct } from '../../store/slices/productSlice';
 
 function ProductCard({ product, onDelete }) {
-  const navigate = useNavigate(); // 👈 Navigate হুক инициализация
+  const navigate = useNavigate();
 
   // ⚡ প্রথম ভ্যারিয়েন্টকে ডিফল্ট একটিভ ভ্যারিয়েন্ট হিসেবে সেট করছি
   const [activeVariantIndex, setActiveVariantIndex] = useState(0);
   const [imageIndex, setImageIndex] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // একটিভ ভ্যারিয়েন্ট অনুযায়ী ইমেজ লোড হবে
+  // একটিভ ভ্যারিয়েন্ট অনুযায়ী ইমেজ ও সাইজ লোড হবে
   const currentVariant = product.variants?.[activeVariantIndex];
   const images = currentVariant?.images || [];
   const currentImage = images[imageIndex] || '';
@@ -77,7 +77,6 @@ function ProductCard({ product, onDelete }) {
 
         {/* Action overlay */}
         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-          {/* ⚡ Edit Button - রাউটে রিডাইরেক্ট করবে */}
           <button
             onClick={() => navigate(`/products/edit/${product.id}`)}
             className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
@@ -148,6 +147,39 @@ function ProductCard({ product, onDelete }) {
           </div>
         )}
 
+        {/* ⚡ NEW: Size Badges with Stock Highlight */}
+        {currentVariant?.sizes?.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 pt-1">
+            {currentVariant.sizes.map((s, idx) => {
+              const isOutOfStock = s.stock === 0;
+              const isLowStock = s.stock > 0 && s.stock <= 3; // ৩ বা তার কম থাকলে low stock ধরবে
+
+              return (
+                <span
+                  key={s.id || idx}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${
+                    isOutOfStock
+                      ? 'bg-red-500/10 text-red-500 border-red-500/30 line-through opacity-70'
+                      : isLowStock
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                      : 'bg-surface-light dark:bg-surface-dark text-text-primary-light dark:text-text-primary-dark border-border-light dark:border-border-dark'
+                  }`}
+                  title={
+                    isOutOfStock
+                      ? 'Out of stock'
+                      : isLowStock
+                      ? `Low stock! Only ${s.stock} left`
+                      : `In stock (${s.stock})`
+                  }
+                >
+                  {s.size || s.name}
+                  {isLowStock && <span className="ml-1 text-[9px] font-bold">({s.stock})</span>}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         {/* Views / Sold */}
         <div className="flex items-center gap-4 text-xs text-text-secondary-light dark:text-text-secondary-dark pt-1 border-t border-border-light dark:border-border-dark">
           <div className="flex items-center gap-1">
@@ -190,7 +222,7 @@ function ProductCard({ product, onDelete }) {
 
 export default function ProductList() {
   const dispatch = useDispatch();
-  const navigate = useNavigate(); // 👈 Navigation for "Add Product"
+  const navigate = useNavigate();
   
   const items = useSelector((state) => state.products.items);
   const isProductLoading = useSelector((state) => state.products.loading.products);
@@ -223,7 +255,6 @@ export default function ProductList() {
           </p>
         </div>
 
-        {/* ⚡ Add Product Button */}
         <button
           onClick={() => navigate('/products/add')}
           className="btn-primary flex items-center gap-2 cursor-pointer"
