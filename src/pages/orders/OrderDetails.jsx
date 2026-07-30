@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   fetchOrderById,
   updateOrderStatus,
@@ -23,11 +24,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+import logo from "../../assets/titto-red.logo.png";
+
 export default function OrderDetails() {
   const { id } = useParams();
   const dispatch = useDispatch();
 
-  // Redux State থেকে ডাটা নেওয়া
+  // Redux State থেকে ডাটা নেওয়া
   const { selectedOrder, loading, updating, error } = useSelector((state) => state.orders);
 
   const [status, setStatus] = useState('');
@@ -98,13 +101,14 @@ export default function OrderDetails() {
     order.deliveryCharge ?? order.delivery_charge ?? 0
   );
 
+  // মূল সাবটোটাল (কোনো ডিসকাউন্ট বাদ দেওয়ার আগের দাম)
   const computedSubtotal = order.items && order.items.length > 0
     ? order.items.reduce((acc, item) => acc + (parseFloat(item.price || 0) * parseFloat(item.quantity || item.qty || 1)), 0)
     : parseFloat(order.price || 0);
 
   const subtotal = computedSubtotal;
 
-  // 🎯 Percentage (%) Based Discount Calculation
+  // 🎯 Percentage (%) & Flat Based Discount Calculation
   const discountAmount = (() => {
     if (order.items && order.items.length > 0) {
       return order.items.reduce((acc, item) => {
@@ -113,7 +117,6 @@ export default function OrderDetails() {
         const itemDiscVal = parseFloat(item.discount || 0);
         const type = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
 
-        // Check if discount is percentage or fixed amount
         if (type === 'percent' || type === 'percentage') {
           return acc + ((itemPrice * itemDiscVal) / 100) * itemQty;
         }
@@ -148,7 +151,7 @@ export default function OrderDetails() {
     .join(', ') || 'N/A';
 
   return (
-    <div className="space-y-6 p-4 md:p-6 print:p-0 print:bg-white print:text-black">
+    <div className="space-y-6 p-4 md:p-6 print:p-0 print:m-0 print:bg-white print:text-black">
       {error && (
         <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm flex items-center gap-2 print:hidden">
           <AlertCircle size={18} className="shrink-0" />
@@ -156,7 +159,7 @@ export default function OrderDetails() {
         </div>
       )}
 
-      {/* Header */}
+      {/* 🛑 1. Top Bar Navigation (প্রিন্টে হাইড থাকবে) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <Link
@@ -183,30 +186,14 @@ export default function OrderDetails() {
 
         <button
           onClick={handlePrint}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-background-dark text-text-primary-light dark:text-text-primary-dark font-medium rounded-lg transition-all shadow-sm text-sm"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white dark:bg-accent-brand font-medium rounded-lg hover:opacity-90 transition-all shadow-sm text-sm cursor-pointer"
         >
           <Printer size={18} />
           Print Invoice
         </button>
       </div>
 
-      {/* Printable Title */}
-      <div className="hidden print:block border-b pb-4 mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-black">TITTO CRM</h1>
-            <p className="text-xs text-gray-600">Official Sales Invoice</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-lg font-bold">INVOICE #{orderIdDisplay}</h2>
-            <p className="text-xs text-gray-600">
-              Date: {order.createdAt || order.created_at ? new Date(order.createdAt || order.created_at).toLocaleDateString('en-GB') : 'N/A'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Update Status Bar */}
+      {/* 🛑 2. Status Update Control Box (প্রিন্টে হাইড থাকবে) */}
       <div className="bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark shadow-sm print:hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -247,23 +234,62 @@ export default function OrderDetails() {
         )}
       </div>
 
-      {/* Details Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm print:border-gray-300">
-            <div className="px-5 py-4 border-b border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2">
+      {/* 📄 3. Printable Invoice Header (শুধু প্রিন্ট করার সময় দেখাবে) */}
+      <div className="hidden print:block border-b border-gray-300 pb-6 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <img src={logo} className="h-12 w-auto object-contain" alt="Titto Logo" />
+            <p className="text-xs text-gray-500 mt-1">www.titto.com.bd | Support: +880 1831-698522</p>
+
+            <div className="mt-4">
+              <span className="text-[10px] pb-2 font-bold uppercase tracking-wider text-gray-400">INVOICE TO:</span>
+              <h3 className="text-xs pb-1 pt-1 text-gray-600"><span className="font-extrabold">Name:</span> {customerName}</h3>
+              <p className="text-xs pb-1 text-gray-600"><span className="font-extrabold">Phone:</span> {order.phone || 'N/A'}</p>
+              <p className="text-xs pb-1 text-gray-600 max-w-xs"><span className="font-extrabold">Address:</span> {fullAddress}</p>
+            </div>
+          </div>
+
+          {/* QR Code Section */}
+          <div className="flex flex-col items-end">
+            <div className="bg-white p-2 border border-gray-300 rounded-md shadow-sm">
+              <QRCodeSVG
+                value={`Invoice #${orderIdDisplay} | Customer: ${customerName} | Phone: ${order.phone || 'N/A'} | Amount: BDT ${grandTotal}`}
+                size={80}
+                level="M"
+              />
+            </div>
+            <div className="text-right mt-2">
+              <h2 className="text-base font-bold text-black">INVOICE #{orderIdDisplay}</h2>
+              <p className="text-xs text-gray-500">
+                Date: {order.createdAt || order.created_at ? new Date(order.createdAt || order.created_at).toLocaleDateString('en-GB') : 'N/A'}
+              </p>
+              <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase border border-gray-400 rounded">
+                Status: {order.status || 'Pending'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📊 4. Main Details Grid (CRM UI Screen + Printable Content) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-4">
+        
+        {/* Left Section: Ordered Items */}
+        <div className="lg:col-span-2 space-y-6 print:w-full">
+          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden shadow-sm print:border-none print:shadow-none">
+            <div className="px-5 py-4 border-b border-border-light dark:border-border-dark font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 print:hidden">
               <Package size={18} className="text-accent-brand" />
               <span>Ordered Items</span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark uppercase text-[11px] font-semibold tracking-wider print:bg-gray-100 print:text-black">
+                <thead className="bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark uppercase text-[11px] font-semibold tracking-wider print:bg-gray-100 print:text-black print:border-y print:border-gray-300">
                   <tr>
-                    <th className="px-5 py-3">Product Description</th>
-                    <th className="px-5 py-3 text-center">Qty</th>
-                    <th className="px-5 py-3 text-right">Unit Price</th>
-                    <th className="px-5 py-3 text-right">Total</th>
+                    <th className="px-5 py-3 print:px-2 print:py-2">Product Description</th>
+                    <th className="px-5 py-3 text-center print:px-2 print:py-2">Qty</th>
+                    <th className="px-5 py-3 text-right print:px-2 print:py-2">Unit Price</th>
+                    <th className="px-5 py-3 text-right print:px-2 print:py-2">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light dark:divide-border-dark print:divide-gray-200">
@@ -271,43 +297,73 @@ export default function OrderDetails() {
                     order.items.map((item, idx) => {
                       const itemQty = Number(item.quantity || item.qty || 1);
                       const itemPrice = parseFloat(item.price || 0);
-                      const itemTotal = itemPrice * itemQty;
                       const itemDiscountVal = parseFloat(item.discount || 0);
-                      const itemDiscType = item.discount_type || item.discountType || 'percent';
+                      const itemDiscType = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
+
+                      // একক প্রডাক্টের ডিসকাউন্ট হিসাব
+                      const unitDiscount = itemDiscType === 'percent' || itemDiscType === 'percentage'
+                        ? (itemPrice * itemDiscountVal) / 100
+                        : itemDiscountVal;
+
+                      const discountedUnitPrice = Math.max(0, itemPrice - unitDiscount);
+                      const itemOriginalTotal = itemPrice * itemQty;
+                      const itemNetTotal = discountedUnitPrice * itemQty;
 
                       return (
                         <tr key={idx}>
-                          <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
+                          <td className="px-5 py-3.5 print:px-2 print:py-2 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
                             <div>
-                              {item.name || item.product_name || 'Product Item'}
+                              <p className="font-semibold text-slate-900 print:text-black">
+                                {item.name || item.product_name || 'Product Item'}
+                              </p>
                               {(item.color || item.size) && (
-                                <span className="block text-xs text-text-secondary-light dark:text-text-secondary-dark font-normal">
+                                <span className="block text-xs text-text-secondary-light dark:text-text-secondary-dark print:text-gray-600 font-normal">
                                   {item.color && `Color: ${item.color}`} {item.color && item.size && '|'} {item.size && `Size: ${item.size}`}
                                 </span>
                               )}
                               {itemDiscountVal > 0 && (
-                                <span className="block text-xs text-emerald-600 dark:text-emerald-400 font-normal">
+                                <span className="block text-xs text-emerald-600 dark:text-emerald-400 print:text-emerald-700 font-normal">
                                   (Discount: {itemDiscType === 'flat' ? `৳${itemDiscountVal}` : `${itemDiscountVal}%`})
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-5 py-3.5 text-center">{itemQty}</td>
-                          <td className="px-5 py-3.5 text-right">৳{itemPrice.toLocaleString('en-BD')}</td>
-                          <td className="px-5 py-3.5 text-right font-semibold">
-                            ৳{itemTotal.toLocaleString('en-BD')}
+                          <td className="px-5 py-3.5 print:px-2 print:py-2 text-center print:text-black">{itemQty}</td>
+                          
+                          {/* Unit Price Display (ডিসকাউন্ট থাকলে কাটা দাম + নতুন দাম) */}
+                          <td className="px-5 py-3.5 print:px-2 print:py-2 text-right print:text-black">
+                            {itemDiscountVal > 0 ? (
+                              <div>
+                                <span className="line-through text-xs text-gray-400 block font-normal">৳{itemPrice.toLocaleString('en-BD')}</span>
+                                <span className="font-medium">৳{discountedUnitPrice.toLocaleString('en-BD')}</span>
+                              </div>
+                            ) : (
+                              `৳${itemPrice.toLocaleString('en-BD')}`
+                            )}
+                          </td>
+
+                          {/* Total Price Display */}
+                          <td className="px-5 py-3.5 print:px-2 print:py-2 text-right font-semibold print:text-black">
+                            {itemDiscountVal > 0 ? (
+                              <div>
+                                <span className="line-through text-xs text-gray-400 block font-normal">৳{itemOriginalTotal.toLocaleString('en-BD')}</span>
+                                <span>৳{itemNetTotal.toLocaleString('en-BD')}</span>
+                              </div>
+                            ) : (
+                              `৳${itemOriginalTotal.toLocaleString('en-BD')}`
+                            )}
                           </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
+                      <td className="px-5 py-3.5 print:px-2 print:py-2 font-medium text-text-primary-light dark:text-text-primary-dark print:text-black">
                         Standard Order Item
                       </td>
-                      <td className="px-5 py-3.5 text-center">1</td>
-                      <td className="px-5 py-3.5 text-right">৳{subtotal.toLocaleString('en-BD')}</td>
-                      <td className="px-5 py-3.5 text-right font-semibold">
+                      <td className="px-5 py-3.5 print:px-2 print:py-2 text-center print:text-black">1</td>
+                      <td className="px-5 py-3.5 print:px-2 print:py-2 text-right print:text-black">৳{subtotal.toLocaleString('en-BD')}</td>
+                      <td className="px-5 py-3.5 print:px-2 print:py-2 text-right font-semibold print:text-black">
                         ৳{subtotal.toLocaleString('en-BD')}
                       </td>
                     </tr>
@@ -316,8 +372,8 @@ export default function OrderDetails() {
               </table>
             </div>
 
-            {/* Price Summary */}
-            <div className="p-5 bg-background-light/50 dark:bg-background-dark/50 border-t border-border-light dark:border-border-dark space-y-2 text-sm print:bg-gray-50">
+            {/* Price Summary Breakdown */}
+            <div className="p-5 bg-background-light/50 dark:bg-background-dark/50 border-t border-border-light dark:border-border-dark space-y-2 text-sm print:bg-transparent print:p-0 print:pt-4 print:border-t print:border-gray-300">
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark print:text-gray-700">
                 <span>Subtotal:</span>
                 <span>৳{subtotal.toLocaleString('en-BD')}</span>
@@ -327,12 +383,12 @@ export default function OrderDetails() {
                 <span>৳{deliveryCharge.toLocaleString('en-BD')}</span>
               </div>
               {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 print:text-emerald-700 font-medium">
                   <span>Discount:</span>
                   <span>-৳{discountAmount.toLocaleString('en-BD')}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-base text-text-primary-light dark:text-text-primary-dark print:text-black pt-2 border-t border-border-light dark:border-border-dark">
+              <div className="flex justify-between font-bold text-base text-text-primary-light dark:text-text-primary-dark print:text-black pt-2 border-t border-border-light dark:border-border-dark print:border-gray-300">
                 <span>Grand Total:</span>
                 <span className="text-accent-brand print:text-black">
                   ৳{grandTotal.toLocaleString('en-BD')}
@@ -342,9 +398,10 @@ export default function OrderDetails() {
           </div>
         </div>
 
-        {/* Right Sidebar: Customer & Payment */}
+        {/* Right Section: Customer & Payment Info */}
         <div className="space-y-6">
-          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-gray-300">
+          {/* Customer Details Box */}
+          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-none print:shadow-none print:p-0 print:hidden">
             <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
               <User size={18} className="text-accent-brand" />
               Customer Details
@@ -376,24 +433,25 @@ export default function OrderDetails() {
             </div>
           </div>
 
-          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:border-gray-300">
-            <h3 className="font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3">
-              <CreditCard size={18} className="text-accent-brand" />
+          {/* Payment Method Details Box */}
+          <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-5 space-y-4 shadow-sm print:bg-transparent print:border-t print:border-gray-200 print:rounded-none print:shadow-none print:px-0 print:py-4">
+            <h3 className="pl-3 font-semibold text-text-primary-light dark:text-text-primary-dark flex items-center gap-2 border-b border-border-light dark:border-border-dark pb-3 print:border-none print:pb-0">
+              <CreditCard size={18} className="text-accent-brand print:hidden" />
               Payment Information
             </h3>
 
-            <div className="space-y-3 text-sm">
+            <div className="pl-3 space-y-3 text-sm">
               <div>
-                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Payment Method</p>
-                <p className="font-semibold capitalize text-text-primary-light dark:text-text-primary-dark">
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark print:text-gray-500">Payment Method</p>
+                <p className="font-semibold capitalize text-text-primary-light dark:text-text-primary-dark print:text-black">
                   {order.payment_method || order.paymentMethod || 'Cash on Delivery (COD)'}
                 </p>
               </div>
 
               {order.note && (
                 <div>
-                  <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">Order Note</p>
-                  <p className="text-xs bg-background-light dark:bg-background-dark p-2.5 rounded-lg border border-border-light dark:border-border-dark mt-1 italic text-text-primary-light dark:text-text-primary-dark">
+                  <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark print:text-gray-500">Order Note</p>
+                  <p className="text-xs bg-background-light dark:bg-background-dark p-2.5 rounded-lg border border-border-light dark:border-border-dark mt-1 italic text-text-primary-light dark:text-text-primary-dark print:bg-gray-50 print:border-gray-200 print:text-black">
                     "{order.note}"
                   </p>
                 </div>
@@ -401,7 +459,22 @@ export default function OrderDetails() {
             </div>
           </div>
         </div>
+
       </div>
+
+      {/* 🖋️ 5. Printable Footer Signatures (শুধু প্রিন্টে শো করবে) */}
+      <div className="hidden print:flex justify-between items-end mt-16 pt-8 border-t border-dashed border-gray-400 text-xs text-gray-600">
+        <div>
+          <p className="font-semibold text-black">Customer Signature</p>
+          <p className="text-[10px] text-gray-400 mt-1">Received in good condition</p>
+        </div>
+        <div className="text-right">
+          <div className="border-b border-gray-400 w-44 ml-auto mb-1"></div>
+          <p className="font-semibold text-black">Authorized Authority</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Send In Good Condition</p>
+        </div>
+      </div>
+
     </div>
   );
 }

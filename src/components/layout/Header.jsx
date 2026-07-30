@@ -52,7 +52,7 @@ export default function Header({ onMenuToggle }) {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
+    <header className="sticky print:hidden top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
       {/* Left: hamburger + breadcrumbs */}
       <div className="flex items-center gap-3">
         <button
