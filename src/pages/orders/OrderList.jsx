@@ -33,7 +33,10 @@ export default function OrderList() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Redux Store থেকে State নিয়ে আসা
+  // 🗑️ Custom Delete Modal State
+  const [deleteModal, setDeleteModal] = useState({ show: false, id: null });
+
+  // Redux Store থেকে State নিয়ে আসা
   const { items, pagination, loading, error } = useSelector((state) => state.orders);
 
   // URL-এর status বা page পরিবর্তন হলে Redux Action Dispatch করা
@@ -41,10 +44,21 @@ export default function OrderList() {
     dispatch(fetchOrders({ page: currentPage, limit: 10, status: currentStatus }));
   }, [dispatch, currentStatus, currentPage]);
 
-  // 🗑️ Redux এর মাধ্যমে অর্ডার ডিলিট
-  const handleDelete = (id) => {
-    if (window.confirm(`Are you sure you want to delete Order #${id}?`)) {
-      dispatch(deleteOrder(id));
+  // 🗑️ Delete Modal ওপেন করার হ্যান্ডলার
+  const handleOpenDeleteModal = (id) => {
+    setDeleteModal({ show: true, id });
+  };
+
+  // 🗑️ Delete Modal ক্লোজ করার হ্যান্ডলার
+  const handleCloseDeleteModal = () => {
+    setDeleteModal({ show: false, id: null });
+  };
+
+  // 🗑️ কনফার্ম করার পর Redux Action Dispatch
+  const handleConfirmDelete = () => {
+    if (deleteModal.id) {
+      dispatch(deleteOrder(deleteModal.id));
+      handleCloseDeleteModal();
     }
   };
 
@@ -321,10 +335,10 @@ export default function OrderList() {
                           <Edit size={18} />
                         </button>
 
-                        {/* 🗑️ Delete Order Option */}
+                        {/* 🗑️ Delete Order Option (Triggers Custom Modal) */}
                         <button
                           type="button"
-                          onClick={() => handleDelete(orderId)}
+                          onClick={() => handleOpenDeleteModal(orderId)}
                           className="inline-flex p-1.5 rounded-md hover:bg-rose-500/10 text-rose-500 transition-colors"
                           title="Delete Order"
                         >
@@ -375,6 +389,48 @@ export default function OrderList() {
         onClose={handleCloseModal}
         order={selectedOrder}
       />
+
+      {/* 🗑️ Custom Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 rounded-2xl shadow-xl max-w-sm w-full space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3 text-rose-500">
+              <div className="p-3 rounded-full bg-rose-500/10">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+                  Delete Order
+                </h3>
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-text-primary-light dark:text-text-primary-dark">
+              Are you sure you want to delete <span className="font-mono font-bold text-accent-brand">Order #{deleteModal.id}</span>?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCloseDeleteModal}
+                className="px-4 py-2 text-xs font-medium rounded-lg border border-border-light dark:border-border-dark hover:bg-background-light dark:hover:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-medium rounded-lg bg-rose-500 hover:bg-rose-600 text-white transition-all shadow-sm"
+              >
+                Delete Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
