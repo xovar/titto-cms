@@ -1,36 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus } from 'lucide-react';
-import { fetchProducts, deleteProduct } from '../../store/slices/productSlice';
+import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus, Search, Filter, RefreshCw } from 'lucide-react';
+import { toast } from 'react-toastify'; // ⚡ Toastify import করা হলো
+import { fetchProducts, deleteProduct, fetchCategories, fetchBrands } from '../../store/slices/productSlice';
 
 function ProductCard({ product, onDelete }) {
   const navigate = useNavigate();
 
-  // ⚡ প্রথম ভ্যারিয়েন্টকে ডিফল্ট একটিভ ভ্যারিয়েন্ট হিসেবে সেট করছি
   const [activeVariantIndex, setActiveVariantIndex] = useState(0);
   const [imageIndex, setImageIndex] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // একটিভ ভ্যারিয়েন্ট অনুযায়ী ইমেজ ও সাইজ লোড হবে
   const currentVariant = product.variants?.[activeVariantIndex];
   const images = currentVariant?.images || [];
   const currentImage = images[imageIndex] || '';
 
-  // মোট স্টক ক্যালকুলেশন (সব ভ্যারিয়েন্ট মিলিয়ে)
   const totalStock = product.variants?.reduce(
-    (sum, v) => sum + v.sizes.reduce((s, sz) => s + sz.stock, 0), 0
+    (sum, v) => sum + (v.sizes?.reduce((s, sz) => s + (sz.stock || 0), 0) || 0), 0
   ) || 0;
 
-  // ডিসকাউন্ট প্রাইস হিসাব
   const discountedPrice = product.discount
     ? (parseFloat(product.price) * (1 - parseFloat(product.discount) / 100)).toFixed(0)
     : product.price;
 
-  // যখন কালার চেঞ্জ হবে তখন ইমেজ ইনডেক্স রিসেট করার জন্য
   const handleVariantChange = (index) => {
     setActiveVariantIndex(index);
     setImageIndex(0); 
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    await onDelete(product.id, product.name);
+    setIsDeleting(false);
+    setShowConfirm(false);
   };
 
   return (
@@ -52,7 +56,7 @@ function ProductCard({ product, onDelete }) {
 
         {/* Discount badge */}
         {parseFloat(product.discount) > 0 && (
-          <div className="absolute top-3 left-3 bg-accent-danger text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+          <div className="absolute top-3 left-3 bg-accent-danger text-white text-xs font-semibold px-2.5 py-1 rounded-full z-10">
             -{product.discount}%
           </div>
         )}
@@ -104,7 +108,7 @@ function ProductCard({ product, onDelete }) {
                 <span className="text-text-secondary-light/30 dark:text-text-secondary-dark/30">•</span>
               </>
             )}
-            <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">{product.category?.name}</span>
+            <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">{product.category?.name || 'Uncategorized'}</span>
           </div>
           <h3 className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark leading-snug line-clamp-1">
             {product.name}
@@ -147,12 +151,12 @@ function ProductCard({ product, onDelete }) {
           </div>
         )}
 
-        {/* ⚡ NEW: Size Badges with Stock Highlight */}
+        {/* Size Badges */}
         {currentVariant?.sizes?.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
             {currentVariant.sizes.map((s, idx) => {
               const isOutOfStock = s.stock === 0;
-              const isLowStock = s.stock > 0 && s.stock <= 3; // ৩ বা তার কম থাকলে low stock ধরবে
+              const isLowStock = s.stock > 0 && s.stock <= 3;
 
               return (
                 <span
@@ -204,14 +208,19 @@ function ProductCard({ product, onDelete }) {
             This action cannot be undone.
           </p>
           <div className="flex gap-2">
-            <button onClick={() => setShowConfirm(false)} className="btn-secondary text-xs px-4 py-2">
+            <button 
+              onClick={() => setShowConfirm(false)} 
+              disabled={isDeleting}
+              className="btn-secondary text-xs px-4 py-2 disabled:opacity-50"
+            >
               Cancel
             </button>
             <button
-              onClick={() => { onDelete(product.id); setShowConfirm(false); }}
-              className="btn-primary text-xs px-4 py-2 bg-accent-danger! hover:bg-red-600!"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="btn-primary text-xs px-4 py-2 bg-accent-danger hover:bg-red-600 border-none flex items-center gap-1 disabled:opacity-70"
             >
-              Delete
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </button>
           </div>
         </div>
@@ -224,66 +233,221 @@ export default function ProductList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   
-  const items = useSelector((state) => state.products.items);
-  const isProductLoading = useSelector((state) => state.products.loading.products);
+  const items = useSelector((state) => state.products.items || []);
+  const categories = useSelector((state) => state.products.categories || []);
+  const brands = useSelector((state) => state.products.brands || []);
+  const isProductLoading = useSelector((state) => state.products.loading?.products);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBrand, setSelectedBrand] = useState('all');
+  const [stockFilter, setStockFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
 
   useEffect(() => {
     dispatch(fetchProducts());
+    dispatch(fetchCategories());
+    dispatch(fetchBrands());
   }, [dispatch]);
 
-  const handleDelete = (id) => {
-    dispatch(deleteProduct(id));
+  // 🗑️ Toastify সহ প্রডাক্ট ডিলিট হ্যান্ডলার
+  const handleDelete = async (id, name) => {
+    try {
+      await dispatch(deleteProduct(id)).unwrap();
+      toast.success(`Product "${name || ''}" deleted successfully!`);
+    } catch (err) {
+      toast.error(err || 'Failed to delete product');
+    }
   };
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setSelectedBrand('all');
+    setStockFilter('all');
+    setSortBy('newest');
+  };
+
+  const filteredProducts = useMemo(() => {
+    return items
+      .filter((product) => {
+        const matchesSearch =
+          product.name?.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+          product.category?.name?.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+          product.brand?.name?.toLowerCase().includes(searchTerm.toLowerCase().trim());
+
+        const matchesCategory =
+          selectedCategory === 'all' ||
+          String(product.category?.id || product.category?._id) === String(selectedCategory);
+
+        const matchesBrand =
+          selectedBrand === 'all' ||
+          String(product.brand?.id || product.brand?._id) === String(selectedBrand);
+
+        const totalStock = product.variants?.reduce(
+          (sum, v) => sum + (v.sizes?.reduce((s, sz) => s + (sz.stock || 0), 0) || 0), 0
+        ) || 0;
+
+        let matchesStock = true;
+        if (stockFilter === 'in_stock') matchesStock = totalStock > 0;
+        if (stockFilter === 'out_of_stock') matchesStock = totalStock === 0;
+
+        return matchesSearch && matchesCategory && matchesBrand && matchesStock;
+      })
+      .sort((a, b) => {
+        const getPrice = (p) => p.discount ? parseFloat(p.price) * (1 - parseFloat(p.discount) / 100) : parseFloat(p.price);
+
+        if (sortBy === 'price_low') return getPrice(a) - getPrice(b);
+        if (sortBy === 'price_high') return getPrice(b) - getPrice(a);
+        return 0;
+      });
+  }, [items, searchTerm, selectedCategory, selectedBrand, stockFilter, sortBy]);
 
   if (isProductLoading && items.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="spinner" />
+        <div className="w-8 h-8 border-3 border-accent-brand border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6" id="product-list-view">
-      <div className="flex items-center justify-between">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary-light dark:text-text-primary-dark tracking-tight">
             Products
           </h1>
           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">
-            {items.length} products in catalog
+            Showing {filteredProducts.length} of {items.length} products
           </p>
         </div>
 
         <button
           onClick={() => navigate('/products/add')}
-          className="btn-primary flex items-center gap-2 cursor-pointer"
+          className="btn-primary flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"
         >
           <Plus size={16} /> Add Product
         </button>
       </div>
 
+      {/* Search & Filters Bar */}
+      <div className="card p-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="relative lg:col-span-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark" size={16} />
+            <input
+              type="text"
+              placeholder="Search product..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field pl-9 text-xs py-2 w-full"
+            />
+          </div>
+
+          <div>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="input-field text-xs py-2 w-full cursor-pointer"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id || cat._id} value={cat.id || cat._id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="input-field text-xs py-2 w-full cursor-pointer"
+            >
+              <option value="all">All Brands</option>
+              {brands.map((brand) => (
+                <option key={brand.id || brand._id} value={brand.id || brand._id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              className="input-field text-xs py-2 w-full cursor-pointer"
+            >
+              <option value="all">All Stock Status</option>
+              <option value="in_stock">In Stock</option>
+              <option value="out_of_stock">Out of Stock</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="input-field text-xs py-2 w-full cursor-pointer"
+            >
+              <option value="newest">Newest First</option>
+              <option value="price_low">Price: Low to High</option>
+              <option value="price_high">Price: High to Low</option>
+            </select>
+          </div>
+        </div>
+
+        {(searchTerm || selectedCategory !== 'all' || selectedBrand !== 'all' || stockFilter !== 'all' || sortBy !== 'newest') && (
+          <div className="flex items-center justify-between pt-2 border-t border-border-light dark:border-border-dark text-xs">
+            <span className="text-text-secondary-light dark:text-text-secondary-dark flex items-center gap-1">
+              <Filter size={12} /> Active filters applied
+            </span>
+            <button
+              onClick={handleResetFilters}
+              className="text-accent-brand hover:underline flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <RefreshCw size={12} /> Reset Filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Product Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {items.map((product) => (
-          <ProductCard key={product.id} product={product} onDelete={handleDelete} />
+        {filteredProducts.map((product) => (
+          <ProductCard key={product.id || product._id} product={product} onDelete={handleDelete} />
         ))}
       </div>
 
-      {items.length === 0 && !isProductLoading && (
+      {/* Empty State */}
+      {filteredProducts.length === 0 && !isProductLoading && (
         <div className="card p-12 text-center">
           <ShoppingBag size={48} className="mx-auto text-text-secondary-light/30 dark:text-text-secondary-dark/30 mb-4" />
           <p className="text-lg font-medium text-text-primary-light dark:text-text-primary-dark">
-            No products yet
+            No products found
           </p>
           <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1 mb-4">
-            Add your first product to get started.
+            {items.length === 0 ? "Add your first product to get started." : "Try adjusting your search or filter parameters."}
           </p>
-          <button
-            onClick={() => navigate('/products/add')}
-            className="btn-primary inline-flex items-center gap-2 cursor-pointer"
-          >
-            <Plus size={16} /> Add Product
-          </button>
+          {items.length === 0 ? (
+            <button
+              onClick={() => navigate('/products/add')}
+              className="btn-primary inline-flex items-center gap-2 cursor-pointer"
+            >
+              <Plus size={16} /> Add Product
+            </button>
+          ) : (
+            <button
+              onClick={handleResetFilters}
+              className="btn-secondary inline-flex items-center gap-2 cursor-pointer text-xs"
+            >
+              <RefreshCw size={14} /> Clear All Filters
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import themeReducer from './slices/themeSlice';
 import productReducer from './slices/productSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import orderReducer from "./slices/orderSlice";
+import bannerReducer from "./slices/bannerSlice";
 
 export const store = configureStore({
   reducer: {
@@ -10,5 +11,6 @@ export const store = configureStore({
     products: productReducer,
     dashboard: dashboardReducer,
     orders: orderReducer,
+    banners: bannerReducer,
   },
 });

@@ -1,22 +1,27 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import DashboardLayout from './layouts/DashboardLayout';
-import Dashboard from './pages/Dashboard';
+import { Routes, Route, Navigate } from "react-router-dom";
+import DashboardLayout from "./layouts/DashboardLayout";
+import Dashboard from "./pages/Dashboard";
 
 // Product Pages
-import ProductList from './pages/products/ProductList';
-import ProductForm from './components/productsForm/ProductForm';
-import Categories from './pages/products/Categories';
-import Colors from './pages/products/Colors';
-import Brands from './pages/products/Brands';
+import ProductList from "./pages/products/ProductList";
+import ProductForm from "./components/productsForm/ProductForm";
+import Categories from "./pages/products/Categories";
+import Colors from "./pages/products/Colors";
+import Brands from "./pages/products/Brands";
 
 // 🛍️ Order Pages (এগুলো আপনার `src/pages/orders/` ফোল্ডারে থাকতে হবে)
-import OrderList from './pages/orders/OrderList'; // 👈 Import OrderList
-import CreateOrder from './pages/orders/CreateOrder'; // 👈 Import CreateOrder
-import OrderDetails from './pages/orders/OrderDetails'; // 👈 Import OrderDetails (যদি সিঙ্গেল অর্ডার দেখতে চান)
+import OrderList from "./pages/orders/OrderList"; // 👈 Import OrderList
+import CreateOrder from "./pages/orders/CreateOrder"; // 👈 Import CreateOrder
+import OrderDetails from "./pages/orders/OrderDetails"; // 👈 Import OrderDetails (যদি সিঙ্গেল অর্ডার দেখতে চান)
 
 // Auth & LockScreen
-import LockScreen from './pages/lockscreen/LockScreen';
-import PrivateRoute from './pages/firebase/PrivateRoute';
+import LockScreen from "./pages/lockscreen/LockScreen";
+import PrivateRoute from "./pages/firebase/PrivateRoute";
+
+//banner & popups
+import AllBanners from "./pages/promotions/AllBanners";
+import AddBanner from "./pages/promotions/addBanner";
+import EditBanner from "./pages/promotions/EditBanner"
 
 export default function App() {
   return (
@@ -42,6 +47,11 @@ export default function App() {
           <Route path="orders" element={<OrderList />} />
           <Route path="orders/add" element={<CreateOrder />} />
           <Route path="orders/:id" element={<OrderDetails />} />
+
+          {/* promotion & banners */}
+          <Route path="/promotions/banners" element={<AllBanners />} />
+          <Route path="/promotions/add" element={<AddBanner />} />
+          <Route path="/promotions/edit/:id" element={<EditBanner />} />
         </Route>
       </Route>
 

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Trash2, Plus, Award } from 'lucide-react';
+import { Trash2, Plus, Award, Search, AlertTriangle, X } from 'lucide-react';
+import { toast } from 'react-toastify'; // ⚡ Toastify import করা হলো
 import {
   fetchBrands,
   addBrand,
@@ -9,51 +10,103 @@ import {
 
 export default function Brands() {
   const dispatch = useDispatch();
-  
-  // ⚡ স্লাইসের স্ট্রাকচার অনুযায়ী loading.brands স্টেটটি নিয়ে আসা হলো
+
+  // ⚡ স্লাইসের আর্কিটেকচার অনুযায়ী স্টেট
   const { brands, loading } = useSelector((state) => state.products);
-  const isBrandLoading = loading?.brands; 
+  const isBrandLoading = loading?.brands;
+
+  // Safe fallback array
+  const brandsList = useMemo(() => (Array.isArray(brands) ? brands : []), [brands]);
 
   const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false); // বাটন লোডারের জন্য
+  const [search, setSearch] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🗑️ মডালের স্টেট
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     dispatch(fetchBrands());
   }, [dispatch]);
 
+  // 🔍 নাম এবং taxonomy ID দিয়ে ফিল্টারিং
+  const filteredBrands = useMemo(() => {
+    const searchTerm = search.toLowerCase().trim();
+    if (!searchTerm) return brandsList;
+
+    return brandsList.filter((b) => {
+      const brandName = b?.name?.toLowerCase() || '';
+      const brandId = String(b?.id || b?._id || '').toLowerCase();
+      return brandName.includes(searchTerm) || brandId.includes(searchTerm);
+    });
+  }, [brandsList, search]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError('');
 
-    if (!name.trim()) {
-      setError('Brand name cannot be empty');
+    const trimmedName = name.trim();
+
+    if (!trimmedName) {
+      toast.error('Brand name cannot be empty!'); // 🚀 Toast message
       return;
     }
 
-    if (brands.some((b) => b.name.toLowerCase() === name.trim().toLowerCase())) {
-      setError('Brand name already exists');
+    // Safe duplicate check
+    if (brandsList.some((b) => b?.name?.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.warning('Brand name already exists!'); // 🚀 Toast message
       return;
     }
 
     setIsSubmitting(true);
-    dispatch(addBrand({ name: name.trim() }))
+    dispatch(addBrand({ name: trimmedName }))
       .unwrap()
       .then(() => {
+        toast.success(`Brand "${trimmedName}" added successfully!`); // 🚀 Toast message
         setName('');
+        // ⚡ নতুন ব্র্যান্ড ক্রিয়েট হওয়ার পর আইডি সাথে সাথে পেতে রিফেচ কল
+        dispatch(fetchBrands());
       })
       .catch((err) => {
-        setError(err || 'Failed to add brand');
+        toast.error(err || 'Failed to add brand'); // 🚀 Toast message
       })
       .finally(() => {
         setIsSubmitting(false);
       });
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this brand?')) {
-      dispatch(deleteBrand(id));
-    }
+  // 🗑️ ডিলিট মডাল ওপেন
+  const openDeleteModal = (brand) => {
+    setSelectedBrand(brand);
+    setDeleteModalOpen(true);
+  };
+
+  // 🗑️ ডিলিট মডাল ক্লোজ
+  const closeDeleteModal = () => {
+    if (isDeleting) return;
+    setDeleteModalOpen(false);
+    setSelectedBrand(null);
+  };
+
+  // 🗑️ কনফার্ম ডিলিট অ্যাকশন
+  const handleConfirmDelete = () => {
+    const brandId = selectedBrand?.id || selectedBrand?._id;
+    if (!brandId) return;
+
+    setIsDeleting(true);
+    dispatch(deleteBrand(brandId))
+      .unwrap()
+      .then(() => {
+        toast.success(`Brand "${selectedBrand?.name}" deleted successfully!`); // 🚀 Toast message
+        closeDeleteModal();
+      })
+      .catch((err) => {
+        toast.error(err || 'Failed to delete brand'); // 🚀 Toast message
+      })
+      .finally(() => {
+        setIsDeleting(false);
+      });
   };
 
   return (
@@ -68,18 +121,12 @@ export default function Brands() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        {/* Left Split Panel */}
+        {/* Left Split Panel - Form */}
         <div className="md:col-span-2">
           <div className="card p-5 space-y-4">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark">
               Create Brand
             </h3>
-            
-            {error && (
-              <div className="p-3 bg-accent-danger/10 border border-accent-danger/20 text-accent-danger rounded-lg text-xs">
-                {error}
-              </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -97,10 +144,9 @@ export default function Brands() {
                 />
               </div>
 
-              {/* 🔄 ব্র্যান্ড অ্যাড হওয়ার সময় বাটন লোডিং স্টেট */}
-              <button 
-                type="submit" 
-                className="btn-primary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed"
+              <button
+                type="submit"
+                className="btn-primary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -118,18 +164,34 @@ export default function Brands() {
           </div>
         </div>
 
-        {/* Right Split Panel */}
+        {/* Right Split Panel - Table & Search */}
         <div className="md:col-span-3">
           <div className="card overflow-hidden">
-            <div className="px-5 py-4 border-b border-border-light dark:border-border-dark">
+            <div className="px-5 py-4 border-b border-border-light dark:border-border-dark flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark">
                 Brands List
               </h3>
+
+              {/* 🔍 সার্চ ইনপুট */}
+              <div className="relative w-full sm:w-48">
+                <Search
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary-light dark:text-text-secondary-dark"
+                  size={14}
+                />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search brand..."
+                  className="input-field pl-8 text-xs py-1.5"
+                />
+              </div>
             </div>
 
-            <div className="overflow-x-auto relative min-h-37.5">
-              <table className="w-full text-sm">
-                <thead>
+            {/* ⚡ ৫টির বেশি রো হলে স্ক্রল আসার জন্য max-h-[320px] ও overflow-y-auto */}
+            <div className="max-h-[320px] overflow-y-auto overflow-x-auto relative">
+              <table className="w-full text-sm border-collapse">
+                <thead className="sticky top-0 bg-background-light dark:bg-background-dark z-10">
                   <tr className="border-b border-border-light dark:border-border-dark">
                     <th className="text-left px-5 py-3 font-medium text-text-secondary-light dark:text-text-secondary-dark text-xs uppercase tracking-wider">
                       Name
@@ -143,8 +205,7 @@ export default function Brands() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-light dark:divide-border-dark">
-                  {/* ⏳ টেবিল ডেটা লোড হওয়ার সময় সুন্দর কঙ্কাল বা স্পিনার লোডার */}
-                  {isBrandLoading && brands.length === 0 ? (
+                  {isBrandLoading && brandsList.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="text-center py-12">
                         <div className="flex flex-col items-center justify-center gap-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
@@ -154,34 +215,43 @@ export default function Brands() {
                       </td>
                     </tr>
                   ) : (
-                    brands.map((b) => (
-                      <tr key={b.id} className="hover:bg-background-light dark:hover:bg-background-dark/35 transition-colors">
-                        <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark">
-                          <div className="flex items-center gap-2">
-                            <Award size={14} className="text-accent-brand" />
-                            <span>{b.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-xs text-text-secondary-light dark:text-text-secondary-dark font-mono">
-                          {b.id}
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <button
-                            onClick={() => handleDelete(b.id)}
-                            className="text-text-secondary-light hover:text-accent-danger p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                            title="Delete Brand"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredBrands.map((b) => {
+                      const brandId = b?.id || b?._id;
+                      return (
+                        <tr
+                          key={brandId || b?.name}
+                          className="hover:bg-background-light dark:hover:bg-background-dark/35 transition-colors"
+                        >
+                          <td className="px-5 py-3.5 font-medium text-text-primary-light dark:text-text-primary-dark">
+                            <div className="flex items-center gap-2">
+                              <Award size={14} className="text-accent-brand shrink-0" />
+                              <span>{b?.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-text-secondary-light dark:text-text-secondary-dark font-mono">
+                            {brandId || 'Generating...'}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <button
+                              onClick={() => openDeleteModal(b)}
+                              className="text-text-secondary-light cursor-pointer hover:text-accent-danger p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                              title="Delete Brand"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
-                  
-                  {brands.length === 0 && !isBrandLoading && (
+
+                  {filteredBrands.length === 0 && !isBrandLoading && (
                     <tr>
-                      <td colSpan={3} className="text-center py-8 text-text-secondary-light dark:text-text-secondary-dark">
-                        No brands found.
+                      <td
+                        colSpan={3}
+                        className="text-center py-8 text-text-secondary-light dark:text-text-secondary-dark"
+                      >
+                        {search ? 'No matching brands found.' : 'No brands found.'}
                       </td>
                     </tr>
                   )}
@@ -191,6 +261,78 @@ export default function Brands() {
           </div>
         </div>
       </div>
+
+      {/* 🗑️ Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="card w-full max-w-md p-6 relative shadow-2xl border border-border-light dark:border-border-dark animate-scaleIn">
+            <button
+              onClick={closeDeleteModal}
+              disabled={isDeleting}
+              className="absolute top-4 right-4 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark disabled:opacity-50"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-100 dark:bg-red-950/40 text-accent-danger rounded-full shrink-0">
+                <AlertTriangle size={24} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-text-primary-light dark:text-text-primary-dark">
+                  Delete Brand
+                </h3>
+                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark leading-relaxed">
+                  Are you sure you want to delete <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">"{selectedBrand?.name}"</span>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            {/* Selected Item Preview Box */}
+            {selectedBrand && (
+              <div className="mt-4 p-3 bg-background-light dark:bg-background-dark/50 rounded-lg border border-border-light dark:border-border-dark flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Award size={14} className="text-accent-brand shrink-0" />
+                  <span className="font-medium text-text-primary-light dark:text-text-primary-dark">
+                    {selectedBrand.name}
+                  </span>
+                </div>
+                <span className="font-mono text-text-secondary-light dark:text-text-secondary-dark">
+                  {selectedBrand.id || selectedBrand._id}
+                </span>
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="px-4 py-2 cursor-pointer text-xs font-medium border border-border-light dark:border-border-dark rounded-lg hover:bg-background-light dark:hover:bg-background-dark transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 cursor-pointer text-xs font-medium bg-accent-danger hover:bg-red-600 text-white rounded-lg flex items-center gap-2 transition-colors disabled:opacity-70"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} /> Delete Brand
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

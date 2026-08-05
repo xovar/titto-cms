@@ -8,22 +8,29 @@ const extractErrorMsg = (error, defaultMsg) => {
   return error.message || defaultMsg;
 };
 
+// Helper: Response Extractor for Arrays
+const safeExtractArray = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.products)) return data.products;
+  return [];
+};
+
 // ── Product Thunks ──────────────────────────────────────────────────────────
 
 export const fetchProducts = createAsyncThunk('products/fetchAll', async (_, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.get('/products');
-    return response.data;
+    return safeExtractArray(response.data);
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to fetch products'));
   }
 });
 
-// ⚡ Single Product Fetch Thunk
 export const fetchProductById = createAsyncThunk('products/fetchById', async (id, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.get(`/products/${id}`);
-    return response.data;
+    return response.data?.data || response.data;
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to fetch product details'));
   }
@@ -34,15 +41,19 @@ export const addProduct = createAsyncThunk(
   async (productData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/products', productData);
-      
-      if (response.data && typeof response.data === 'object') {
-        return response.data;
+      const resData = response.data?.data || response.data;
+
+      if (resData && typeof resData === 'object' && (resData.id || resData.productId)) {
+        return resData;
       }
 
-      const newId = response.data?.productId || response.data?.id || response.data?.insertId;
+      const isFormData = productData instanceof FormData;
+      const plainData = isFormData ? Object.fromEntries(productData.entries()) : productData;
+
+      const newId = resData?.productId || resData?.id || resData?.insertId;
       return {
         id: newId,
-        ...productData,
+        ...plainData,
         viewed: 0,
         sold: 0,
       };
@@ -57,7 +68,8 @@ export const updateProduct = createAsyncThunk(
   async ({ id, productData }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(`/products/${id}`, productData);
-      return response.data;
+      const resData = response.data?.data || response.data;
+      return { id, ...(typeof resData === 'object' ? resData : {}) };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to update product'));
     }
@@ -78,7 +90,7 @@ export const deleteProduct = createAsyncThunk('products/delete', async (productI
 export const fetchCategories = createAsyncThunk('products/fetchCategories', async (_, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.get('/categories');
-    return response.data;
+    return safeExtractArray(response.data);
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to fetch categories'));
   }
@@ -87,7 +99,7 @@ export const fetchCategories = createAsyncThunk('products/fetchCategories', asyn
 export const addCategory = createAsyncThunk('products/addCategory', async (data, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.post('/categories', data);
-    return response.data;
+    return response.data?.data || response.data;
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to add category'));
   }
@@ -107,7 +119,7 @@ export const deleteCategory = createAsyncThunk('products/deleteCategory', async 
 export const fetchBrands = createAsyncThunk('products/fetchBrands', async (_, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.get('/brands');
-    return response.data;
+    return safeExtractArray(response.data);
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to fetch brands'));
   }
@@ -116,7 +128,7 @@ export const fetchBrands = createAsyncThunk('products/fetchBrands', async (_, { 
 export const addBrand = createAsyncThunk('products/addBrand', async (data, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.post('/brands', data);
-    return response.data;
+    return response.data?.data || response.data;
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to add brand'));
   }
@@ -136,7 +148,7 @@ export const deleteBrand = createAsyncThunk('products/deleteBrand', async (id, {
 export const fetchColors = createAsyncThunk('products/fetchColors', async (_, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.get('/colors');
-    return response.data;
+    return safeExtractArray(response.data);
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to fetch colors'));
   }
@@ -145,7 +157,7 @@ export const fetchColors = createAsyncThunk('products/fetchColors', async (_, { 
 export const addColor = createAsyncThunk('products/addColor', async (data, { rejectWithValue }) => {
   try {
     const response = await axiosInstance.post('/colors', data);
-    return response.data;
+    return response.data?.data || response.data;
   } catch (error) {
     return rejectWithValue(extractErrorMsg(error, 'Failed to add color'));
   }
@@ -166,11 +178,11 @@ const productSlice = createSlice({
   name: 'products',
   initialState: {
     items: [],
-    selectedProduct: null, // Single product store করার জন্য
+    selectedProduct: null,
     categories: [],
     brands: [],
     colors: [],
-    
+
     loading: {
       products: false,
       categories: false,
@@ -197,19 +209,18 @@ const productSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // ── Products ──────────────────────────────────────────
-      .addCase(fetchProducts.pending, (state) => { 
-        state.loading.products = true; 
-        state.error.products = null; 
+      .addCase(fetchProducts.pending, (state) => {
+        state.loading.products = true;
+        state.error.products = null;
       })
-      .addCase(fetchProducts.fulfilled, (state, action) => { 
-        state.loading.products = false; 
-        state.items = action.payload; 
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.loading.products = false;
+        state.items = action.payload;
       })
-      .addCase(fetchProducts.rejected, (state, action) => { 
-        state.loading.products = false; 
-        state.error.products = action.payload; 
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading.products = false;
+        state.error.products = action.payload;
       })
-      // ⚡ Single Product Fetch State
       .addCase(fetchProductById.pending, (state) => {
         state.loading.products = true;
         state.error.products = null;
@@ -226,24 +237,23 @@ const productSlice = createSlice({
         state.loading.products = true;
         state.error.products = null;
       })
-      .addCase(addProduct.fulfilled, (state, action) => { 
+      .addCase(addProduct.fulfilled, (state, action) => {
         state.loading.products = false;
-        state.items.unshift(action.payload);
+        if (action.payload) state.items.unshift(action.payload);
       })
       .addCase(addProduct.rejected, (state, action) => {
         state.loading.products = false;
         state.error.products = action.payload;
       })
-      // ⚡ Update Product State
       .addCase(updateProduct.pending, (state) => {
         state.loading.products = true;
         state.error.products = null;
       })
       .addCase(updateProduct.fulfilled, (state, action) => {
         state.loading.products = false;
-        const index = state.items.findIndex((item) => item.id === action.payload.id);
+        const index = state.items.findIndex((item) => String(item.id) === String(action.payload.id));
         if (index !== -1) {
-          state.items[index] = action.payload;
+          state.items[index] = { ...state.items[index], ...action.payload };
         }
       })
       .addCase(updateProduct.rejected, (state, action) => {
@@ -251,67 +261,74 @@ const productSlice = createSlice({
         state.error.products = action.payload;
       })
       .addCase(deleteProduct.fulfilled, (state, action) => {
-        state.items = state.items.filter((item) => item.id !== action.payload);
+        state.items = state.items.filter((item) => String(item.id) !== String(action.payload));
       })
 
       // ── Categories ────────────────────────────────────────
-      .addCase(fetchCategories.pending, (state) => { 
-        state.loading.categories = true; 
+      .addCase(fetchCategories.pending, (state) => {
+        state.loading.categories = true;
         state.error.categories = null;
       })
-      .addCase(fetchCategories.fulfilled, (state, action) => { 
-        state.loading.categories = false; 
-        state.categories = action.payload; 
+      .addCase(fetchCategories.fulfilled, (state, action) => {
+        state.loading.categories = false;
+        state.categories = action.payload;
       })
-      .addCase(fetchCategories.rejected, (state, action) => { 
-        state.loading.categories = false; 
-        state.error.categories = action.payload; 
+      .addCase(fetchCategories.rejected, (state, action) => {
+        state.loading.categories = false;
+        state.error.categories = action.payload;
       })
-      .addCase(addCategory.fulfilled, (state, action) => { 
-        state.categories.push(action.payload); 
+      .addCase(addCategory.fulfilled, (state, action) => {
+        if (action.payload) state.categories.push(action.payload);
       })
       .addCase(deleteCategory.fulfilled, (state, action) => {
-        state.categories = state.categories.filter((c) => c.id !== action.payload);
+        state.categories = state.categories.filter(
+          (c) => String(c.id || c._id) !== String(action.payload)
+        );
       })
 
       // ── Brands ────────────────────────────────────────────
-      .addCase(fetchBrands.pending, (state) => { 
-        state.loading.brands = true; 
+      .addCase(fetchBrands.pending, (state) => {
+        state.loading.brands = true;
         state.error.brands = null;
       })
-      .addCase(fetchBrands.fulfilled, (state, action) => { 
-        state.loading.brands = false; 
-        state.brands = action.payload; 
+      .addCase(fetchBrands.fulfilled, (state, action) => {
+        state.loading.brands = false;
+        state.brands = action.payload;
       })
-      .addCase(fetchBrands.rejected, (state, action) => { 
-        state.loading.brands = false; 
-        state.error.brands = action.payload; 
+      .addCase(fetchBrands.rejected, (state, action) => {
+        state.loading.brands = false;
+        state.error.brands = action.payload;
       })
-      .addCase(addBrand.fulfilled, (state, action) => { 
-        state.brands.push(action.payload); 
+      .addCase(addBrand.fulfilled, (state, action) => {
+        if (action.payload) state.brands.push(action.payload);
       })
       .addCase(deleteBrand.fulfilled, (state, action) => {
-        state.brands = state.brands.filter((b) => b.id !== action.payload);
+        state.brands = state.brands.filter(
+          (b) => String(b.id || b._id) !== String(action.payload)
+        );
       })
 
       // ── Colors ────────────────────────────────────────────
-      .addCase(fetchColors.pending, (state) => { 
-        state.loading.colors = true; 
+      .addCase(fetchColors.pending, (state) => {
+        state.loading.colors = true;
         state.error.colors = null;
       })
-      .addCase(fetchColors.fulfilled, (state, action) => { 
-        state.loading.colors = false; 
-        state.colors = action.payload; 
+      .addCase(fetchColors.fulfilled, (state, action) => {
+        state.loading.colors = false;
+        state.colors = action.payload;
       })
-      .addCase(fetchColors.rejected, (state, action) => { 
-        state.loading.colors = false; 
-        state.error.colors = action.payload; 
+      .addCase(fetchColors.rejected, (state, action) => {
+        state.loading.colors = false;
+        state.error.colors = action.payload;
       })
-      .addCase(addColor.fulfilled, (state, action) => { 
-        state.colors.push(action.payload); 
+      .addCase(addColor.fulfilled, (state, action) => {
+        if (action.payload) state.colors.push(action.payload);
       })
       .addCase(deleteColor.fulfilled, (state, action) => {
-        state.colors = state.colors.filter((c) => c.id !== action.payload);
+        // Safe ID matching (id vs _id and String conversion)
+        state.colors = state.colors.filter(
+          (c) => String(c.id || c._id) !== String(action.payload)
+        );
       });
   },
 });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom"; // 👈 Link ইমপোর্ট করা হয়েছে
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -14,6 +14,9 @@ import {
   Clock,
   CheckCircle2,
   Truck,
+  Image,
+  Megaphone,
+  Maximize2,
 } from "lucide-react";
 import logo from "../../assets/titto.logo.png";
 
@@ -35,16 +38,25 @@ const orderSubLinks = [
   { to: "/orders?status=delivered", label: "Delivered", icon: CheckCircle2 },
 ];
 
+// 📢 Banners & Popups Sub Links
+const bannerSubLinks = [
+  { to: "/promotions/banners", label: "All Banners", icon: Image },
+  { to: "/promotions/popups", label: "Popups", icon: Maximize2 },
+  { to: "/promotions/add", label: "Create New", icon: PlusCircle },
+];
+
 export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
   // Route Trackers
   const isProductRoute = location.pathname.startsWith("/products");
   const isOrderRoute = location.pathname.startsWith("/orders");
+  const isBannerRoute = location.pathname.startsWith("/promotions");
 
   // Accordion Expand States
   const [productsExpanded, setProductsExpanded] = useState(isProductRoute);
   const [ordersExpanded, setOrdersExpanded] = useState(isOrderRoute);
+  const [bannersExpanded, setBannersExpanded] = useState(isBannerRoute);
 
   return (
     <>
@@ -164,13 +176,55 @@ export default function Sidebar({ isOpen, onClose }) {
               <div className="ml-4 pl-3 border-l border-border-light dark:border-border-dark space-y-0.5 mt-1">
                 {orderSubLinks.map((link) => {
                   const Icon = link.icon;
-
-                  // 💡 বর্তমান পুরো URL (Path + Query Params) চেক করা হচ্ছে
                   const currentFullUrl = location.pathname + location.search;
                   const isLinkActive = currentFullUrl === link.to;
 
                   return (
-                    // ⚡ NavLink-এর বদলে Link ব্যবহার করা হয়েছে যেন অটোমেটিক 'active' ক্লাস না আসে
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className={`sidebar-link text-[0.8125rem] py-2 ${
+                        isLinkActive ? "active" : ""
+                      }`}
+                      onClick={onClose}
+                    >
+                      <Icon size={16} />
+                      <span>{link.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 📢 Banners & Popups accordion */}
+          <div>
+            <button
+              onClick={() => setBannersExpanded(!bannersExpanded)}
+              className={`sidebar-link w-full justify-between ${isBannerRoute ? "active" : ""}`}
+            >
+              <div className="flex items-center gap-3">
+                <Megaphone size={20} />
+                <span>Banners & Popups</span>
+              </div>
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-200 ${bannersExpanded ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                bannersExpanded ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="ml-4 pl-3 border-l border-border-light dark:border-border-dark space-y-0.5 mt-1">
+                {bannerSubLinks.map((link) => {
+                  const Icon = link.icon;
+                  const currentFullUrl = location.pathname + location.search;
+                  const isLinkActive = currentFullUrl === link.to;
+
+                  return (
                     <Link
                       key={link.to}
                       to={link.to}
