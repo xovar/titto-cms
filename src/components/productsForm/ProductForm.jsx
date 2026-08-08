@@ -16,12 +16,12 @@ import {
   fetchBrands,
   fetchColors,
   addProduct,
-  updateProduct, // ⚡ Redux slice এ updateProduct থাঙ্ক যোগ করে নেবেন
+  updateProduct,
 } from "../../store/slices/productSlice";
 import axiosInstance from "../../api/axiosInstance";
 
 export default function ProductForm() {
-  const { id } = useParams(); // URL এ id থাকলে এটা Edit Mode
+  const { id } = useParams(); // URL এ id থাকলে Edit Mode
   const isEditMode = Boolean(id);
 
   const dispatch = useDispatch();
@@ -30,7 +30,10 @@ export default function ProductForm() {
   const { categories, brands, colors, loading } = useSelector(
     (state) => state.products,
   );
-  const isSubmitting = loading?.products || false;
+
+  // Loading state handling safely
+  const isReduxSubmitting =
+    typeof loading === "boolean" ? loading : loading?.products || false;
 
   // Form States
   const [name, setName] = useState("");
@@ -39,9 +42,12 @@ export default function ProductForm() {
   const [discount, setDiscount] = useState("0");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
-  const [gender, setGender] = useState(0);
+  const [gender, setGender] = useState("0");
 
-  // Variant & UI Loading State
+  /**
+   * Variants state structure:
+   * images: Array of objects [{ file: File | null, url: string, isExisting: boolean }]
+   */
   const [variants, setVariants] = useState([
     {
       colorId: "",
@@ -49,9 +55,13 @@ export default function ProductForm() {
       sizes: [{ size: "", stock: "" }],
     },
   ]);
-  const [uploadingVariants, setUploadingVariants] = useState({});
+
+  // Track deleted existing image URLs in edit mode to delete on submit
+  const [imagesToDeleteOnSubmit, setImagesToDeleteOnSubmit] = useState([]);
+
   const [validationError, setValidationError] = useState("");
   const [fetchingProduct, setFetchingProduct] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch initial dropdown data
   useEffect(() => {
@@ -60,7 +70,7 @@ export default function ProductForm() {
     dispatch(fetchColors());
   }, [dispatch]);
 
-  // ⚡ Edit Mode হলে পুরনো প্রোডাক্টের ডাটা লোড করে ফিল্ড পপুলেট করা
+  // Edit Mode: Fetch product details and populate form
   useEffect(() => {
     if (isEditMode) {
       setFetchingProduct(true);
@@ -68,30 +78,66 @@ export default function ProductForm() {
         .get(`/products/${id}`)
         .then((res) => {
           const product = res.data?.data || res.data;
+          if (!product) return;
+
           setName(product.name || "");
           setDescription(product.description || "");
           setPrice(product.price ? product.price.toString() : "");
-          setDiscount(product.discount ? product.discount.toString() : "0");
-          setCategoryId(product.category_id || product.category?.id || "");
-          setBrandId(product.brand_id || product.brand?.id || "");
-          setGender(product.gender !== undefined ? product.gender : 0);
+          setDiscount(
+            product.discount !== undefined ? product.discount.toString() : "0"
+          );
 
-          if (product.variants && product.variants.length > 0) {
-            const formattedVariants = product.variants.map((v) => ({
-              colorId: v.color_id || v.colorId || "",
-              images: Array.isArray(v.images)
-                ? v.images
-                : typeof v.images === "string"
-                ? JSON.parse(v.images)
-                : [],
-              sizes:
-                v.sizes && v.sizes.length > 0
-                  ? v.sizes.map((s) => ({
-                      size: s.size || "",
-                      stock: s.stock !== undefined ? s.stock.toString() : "",
-                    }))
-                  : [{ size: "", stock: "" }],
-            }));
+          const fetchedCatId =
+            typeof product.category_id === "object"
+              ? product.category_id?.id || product.category_id?._id
+              : product.category_id || product.category?.id || product.category?._id || "";
+          const fetchedBrandId =
+            typeof product.brand_id === "object"
+              ? product.brand_id?.id || product.brand_id?._id
+              : product.brand_id || product.brand?.id || product.brand?._id || "";
+
+          setCategoryId(fetchedCatId ? String(fetchedCatId) : "");
+          setBrandId(fetchedBrandId ? String(fetchedBrandId) : "");
+          setGender(product.gender !== undefined ? String(product.gender) : "0");
+
+          if (
+            product.variants &&
+            Array.isArray(product.variants) &&
+            product.variants.length > 0
+          ) {
+            const formattedVariants = product.variants.map((v) => {
+              let parsedImages = [];
+              if (Array.isArray(v.images)) {
+                parsedImages = v.images;
+              } else if (typeof v.images === "string") {
+                try {
+                  parsedImages = JSON.parse(v.images);
+                } catch {
+                  parsedImages = [v.images];
+                }
+              }
+
+              const extractedColorId =
+                typeof v.color_id === "object"
+                  ? v.color_id?.id || v.color_id?._id
+                  : v.color_id || v.colorId || "";
+
+              return {
+                colorId: extractedColorId ? String(extractedColorId) : "",
+                images: parsedImages.map((imgUrl) => ({
+                  file: null,
+                  url: imgUrl,
+                  isExisting: true,
+                })),
+                sizes:
+                  v.sizes && Array.isArray(v.sizes) && v.sizes.length > 0
+                    ? v.sizes.map((s) => ({
+                        size: s.size || "",
+                        stock: s.stock !== undefined ? s.stock.toString() : "",
+                      }))
+                    : [{ size: "", stock: "" }],
+              };
+            });
             setVariants(formattedVariants);
           }
         })
@@ -110,36 +156,40 @@ export default function ProductForm() {
     if (!isEditMode) {
       if (categories?.length > 0 && !categoryId) {
         const firstCatId = categories[0].id || categories[0]._id;
-        if (firstCatId) setCategoryId(firstCatId);
+        if (firstCatId) setCategoryId(String(firstCatId));
       }
       if (brands?.length > 0 && !brandId) {
         const firstBrandId = brands[0].id || brands[0]._id;
-        if (firstBrandId) setBrandId(firstBrandId);
+        if (firstBrandId) setBrandId(String(firstBrandId));
       }
     }
   }, [categories, brands, categoryId, brandId, isEditMode]);
 
   useEffect(() => {
-    if (!isEditMode && colors?.length > 0 && variants[0]?.colorId === "") {
+    if (
+      !isEditMode &&
+      colors?.length > 0 &&
+      (!variants[0]?.colorId || variants[0]?.colorId === "")
+    ) {
       const firstColorId = colors[0].id || colors[0]._id;
       if (firstColorId) {
         setVariants((prev) => [
           {
             ...prev[0],
-            colorId: firstColorId,
+            colorId: String(firstColorId),
           },
         ]);
       }
     }
   }, [colors, isEditMode]);
 
-  // Handler functions for Variants
+  // Variant Handlers
   const handleAddVariant = () => {
     const defaultColorId = colors[0]?.id || colors[0]?._id || "";
     setVariants((prev) => [
       ...prev,
       {
-        colorId: defaultColorId,
+        colorId: defaultColorId ? String(defaultColorId) : "",
         images: [],
         sizes: [{ size: "", stock: "" }],
       },
@@ -148,107 +198,68 @@ export default function ProductForm() {
 
   const handleRemoveVariant = (index) => {
     if (variants.length === 1) return;
+    // Track existing images in removed variant for deletion
+    const variantToRemove = variants[index];
+    const existingImagesToRemove = variantToRemove.images
+      .filter((img) => img.isExisting)
+      .map((img) => img.url);
+
+    if (existingImagesToRemove.length > 0) {
+      setImagesToDeleteOnSubmit((prev) => [...prev, ...existingImagesToRemove]);
+    }
+
     setVariants((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleVariantChange = (varIdx, field, val) => {
     setVariants((prev) =>
-      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v)),
+      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v))
     );
   };
 
-  // Image Upload Handler
-  const handleImageUpload = async (varIdx, e) => {
+  // Local Image Select Handler (No upload to server yet)
+  const handleImageSelect = (varIdx, e) => {
     const inputElement = e.target;
     const files = Array.from(inputElement.files || []);
     if (files.length === 0) return;
 
-    setUploadingVariants((prev) => ({ ...prev, [varIdx]: true }));
+    const newImageObjects = files.map((file) => ({
+      file: file,
+      url: URL.createObjectURL(file), // Local temporary preview URL
+      isExisting: false,
+    }));
 
-    const options = {
-      maxSizeMB: 0.3,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-    };
+    setVariants((prev) =>
+      prev.map((v, i) => {
+        if (i !== varIdx) return v;
+        return { ...v, images: [...v.images, ...newImageObjects] };
+      })
+    );
 
-    const formData = new FormData();
-
-    try {
-      for (let file of files) {
-        const compressedBlob = await imageCompression(file, options);
-        const fileName = file.name || `image_${Date.now()}.jpg`;
-        const compressedFile = new File([compressedBlob], fileName, {
-          type: compressedBlob.type,
-        });
-
-        formData.append("images", compressedFile);
-      }
-
-      const response = await axiosInstance.post(
-        "/upload/upload-images",
-        formData,
-        {
-          headers: {
-            "Content-Type": undefined,
-          },
-        },
-      );
-
-      const uploadedUrls =
-        response.data?.urls ||
-        response.data?.imageUrls ||
-        response.data?.images ||
-        [];
-
-      if (Array.isArray(uploadedUrls) && uploadedUrls.length > 0) {
-        setVariants((prev) =>
-          prev.map((v, i) => {
-            if (i !== varIdx) return v;
-            const uniqueImages = Array.from(
-              new Set([...v.images, ...uploadedUrls]),
-            );
-            return { ...v, images: uniqueImages };
-          }),
-        );
-        setValidationError("");
-      }
-    } catch (error) {
-      console.error("Image upload failed:", error);
-      const serverMsg =
-        error.response?.data?.message ||
-        "Failed to upload images. Please try again.";
-      setValidationError(serverMsg);
-    } finally {
-      setUploadingVariants((prev) => ({ ...prev, [varIdx]: false }));
-      if (inputElement) inputElement.value = "";
-    }
+    setValidationError("");
+    if (inputElement) inputElement.value = "";
   };
 
-  // Image Remove Handler
-  const handleRemoveImage = async (varIdx, imgIdx) => {
-    const imageUrlToRemove = variants[varIdx]?.images[imgIdx];
-    if (!imageUrlToRemove) return;
+  // Local Image Remove Handler
+  const handleRemoveImage = (varIdx, imgIdx) => {
+    const imageToRemove = variants[varIdx]?.images[imgIdx];
+    if (!imageToRemove) return;
+
+    // If it's an existing server image, queue it up for deletion upon form submit
+    if (imageToRemove.isExisting) {
+      setImagesToDeleteOnSubmit((prev) => [...prev, imageToRemove.url]);
+    } else if (imageToRemove.url) {
+      // Free memory for object URL
+      URL.revokeObjectURL(imageToRemove.url);
+    }
 
     setVariants((prev) =>
       prev.map((v, i) =>
         i === varIdx
           ? { ...v, images: v.images.filter((_, idx) => idx !== imgIdx) }
-          : v,
-      ),
+          : v
+      )
     );
-
-    try {
-      await axiosInstance.post("/upload/delete-image", {
-        imageUrl: imageUrlToRemove,
-      });
-      setValidationError("");
-    } catch (error) {
-      console.error("Failed to delete image from server:", error);
-      const serverMsg =
-        error.response?.data?.message ||
-        "Failed to delete image from server. Removed locally.";
-      setValidationError(serverMsg);
-    }
   };
 
   // Size and Stock Handlers
@@ -257,8 +268,8 @@ export default function ProductForm() {
       prev.map((v, i) =>
         i === varIdx
           ? { ...v, sizes: [...v.sizes, { size: "", stock: "" }] }
-          : v,
-      ),
+          : v
+      )
     );
   };
 
@@ -270,7 +281,7 @@ export default function ProductForm() {
           ...v,
           sizes: v.sizes.filter((_, sIdx) => sIdx !== sizeIdx),
         };
-      }),
+      })
     );
   };
 
@@ -279,18 +290,19 @@ export default function ProductForm() {
       prev.map((v, i) => {
         if (i !== varIdx) return v;
         const updatedSizes = v.sizes.map((s, sIdx) =>
-          sIdx === sizeIdx ? { ...s, [field]: val } : s,
+          sIdx === sizeIdx ? { ...s, [field]: val } : s
         );
         return { ...v, sizes: updatedSizes };
-      }),
+      })
     );
   };
 
   // Submit Handler
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setValidationError("");
 
+    // Validations
     if (!name.trim()) return setValidationError("Product name is required");
     if (!price || parseFloat(price) <= 0)
       return setValidationError("Please enter a valid price");
@@ -302,9 +314,9 @@ export default function ProductForm() {
       if (!v.colorId)
         return setValidationError(`Please select a color for variant ${i + 1}`);
 
-      if (v.images.length === 0) {
+      if (!v.images || v.images.length === 0) {
         return setValidationError(
-          `Please upload at least one image for variant ${i + 1}`,
+          `Please upload at least one image for variant ${i + 1}`
         );
       }
 
@@ -312,55 +324,123 @@ export default function ProductForm() {
         const s = v.sizes[j];
         if (!s.size.trim()) {
           return setValidationError(
-            `Please enter size name for variant ${i + 1}, item ${j + 1}`,
+            `Please enter size name for variant ${i + 1}, item ${j + 1}`
           );
         }
-        if (s.stock === "" || parseInt(s.stock) < 0) {
+        if (s.stock === "" || parseInt(s.stock, 10) < 0) {
           return setValidationError(
-            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`,
+            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`
           );
         }
       }
     }
 
-    const payload = {
-      name: name.trim(),
-      description: description.trim(),
-      price: parseFloat(price) || 0,
-      discount: parseFloat(discount) || 0,
-      category_id: categoryId,
-      brand_id: brandId,
-      gender: isNaN(parseInt(gender, 10)) ? 0 : parseInt(gender, 10),
-      variants: variants.map((v) => ({
-        color_id: v.colorId,
-        images: v.images,
-        sizes: v.sizes.map((s) => ({
-          size: s.size.trim(),
-          stock: parseInt(s.stock, 10) || 0,
-        })),
-      })),
-    };
+    setIsSubmitting(true);
 
-    // ⚡ Edit/Update or Add Action Dispatch
-    const actionToDispatch = isEditMode
-      ? updateProduct({ id, productData: payload })
-      : addProduct(payload);
+    try {
+      const imageCompressionOptions = {
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+      };
 
-    dispatch(actionToDispatch)
-      .unwrap()
-      .then(() => {
-        navigate("/products");
-      })
-      .catch((err) => {
-        setValidationError(
-          err || `Failed to ${isEditMode ? "update" : "create"} product`,
+      // Process and Upload New Images per Variant right before submitting
+      const finalVariants = await Promise.all(
+        variants.map(async (variant) => {
+          const existingUrls = variant.images
+            .filter((img) => img.isExisting)
+            .map((img) => img.url);
+
+          const newFilesToUpload = variant.images
+            .filter((img) => !img.isExisting && img.file)
+            .map((img) => img.file);
+
+          let newUploadedUrls = [];
+
+          if (newFilesToUpload.length > 0) {
+            const formData = new FormData();
+
+            for (let file of newFilesToUpload) {
+              const compressedBlob = await imageCompression(
+                file,
+                imageCompressionOptions
+              );
+              const fileName = file.name || `image_${Date.now()}.jpg`;
+              const compressedFile = new File([compressedBlob], fileName, {
+                type: compressedBlob.type,
+              });
+              formData.append("images", compressedFile);
+            }
+
+            const uploadRes = await axiosInstance.post(
+              "/upload/upload-images",
+              formData,
+              {
+                headers: { "Content-Type": undefined },
+              }
+            );
+
+            newUploadedUrls =
+              uploadRes.data?.urls ||
+              uploadRes.data?.imageUrls ||
+              uploadRes.data?.images ||
+              [];
+          }
+
+          return {
+            color_id: variant.colorId,
+            images: [...existingUrls, ...newUploadedUrls],
+            sizes: variant.sizes.map((s) => ({
+              size: s.size.trim(),
+              stock: parseInt(s.stock, 10) || 0,
+            })),
+          };
+        })
+      );
+
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        price: parseFloat(price) || 0,
+        discount: parseFloat(discount) || 0,
+        category_id: categoryId,
+        brand_id: brandId,
+        gender: parseInt(gender, 10) || 0,
+        variants: finalVariants,
+      };
+
+      const actionToDispatch = isEditMode
+        ? updateProduct({ id, productData: payload })
+        : addProduct(payload);
+
+      await dispatch(actionToDispatch).unwrap();
+
+      // Delete queued removed images from server ONLY after product save succeeds
+      if (imagesToDeleteOnSubmit.length > 0) {
+        await Promise.allSettled(
+          imagesToDeleteOnSubmit.map((imageUrl) =>
+            axiosInstance.post("/upload/delete-image", { imageUrl })
+          )
         );
-      });
+      }
+
+      navigate("/products");
+    } catch (err) {
+      console.error("Submit Error:", err);
+      const message =
+        typeof err === "string"
+          ? err
+          : err?.message ||
+            `Failed to ${isEditMode ? "update" : "create"} product`;
+      setValidationError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (fetchingProduct) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-100">
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Loader2 size={36} className="animate-spin text-accent-brand mb-2" />
         <p className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
           Loading product data...
@@ -369,8 +449,10 @@ export default function ProductForm() {
     );
   }
 
+  const combinedLoading = isSubmitting || isReduxSubmitting;
+
   return (
-    <div className="" id="product-form-view">
+    <div id="product-form-view">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <button
@@ -392,7 +474,7 @@ export default function ProductForm() {
         </div>
       )}
 
-      <div className="flex justify-center mt-10">
+      <div className="flex justify-center mt-6">
         <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl w-full">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-6">
@@ -487,11 +569,14 @@ export default function ProductForm() {
                       <option value="" disabled>
                         Select Category
                       </option>
-                      {categories.map((c) => (
-                        <option key={c.id || c._id} value={c.id || c._id}>
-                          {c.name}
-                        </option>
-                      ))}
+                      {categories.map((c) => {
+                        const idVal = String(c.id || c._id);
+                        return (
+                          <option key={idVal} value={idVal}>
+                            {c.name}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -508,11 +593,14 @@ export default function ProductForm() {
                       <option value="" disabled>
                         Select Brand
                       </option>
-                      {brands.map((b) => (
-                        <option key={b.id || b._id} value={b.id || b._id}>
-                          {b.name}
-                        </option>
-                      ))}
+                      {brands.map((b) => {
+                        const idVal = String(b.id || b._id);
+                        return (
+                          <option key={idVal} value={idVal}>
+                            {b.name}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -584,18 +672,21 @@ export default function ProductForm() {
                             handleVariantChange(
                               varIdx,
                               "colorId",
-                              e.target.value,
+                              e.target.value
                             )
                           }
                           className="select-field"
                           required
                         >
                           <option value="">Select Color</option>
-                          {colors.map((c) => (
-                            <option key={c.id || c._id} value={c.id || c._id}>
-                              {c.name}
-                            </option>
-                          ))}
+                          {colors.map((c) => {
+                            const idVal = String(c.id || c._id);
+                            return (
+                              <option key={idVal} value={idVal}>
+                                {c.name}
+                              </option>
+                            );
+                          })}
                         </select>
                         {variant.colorId && (
                           <div
@@ -603,7 +694,9 @@ export default function ProductForm() {
                             style={{
                               backgroundColor:
                                 colors.find(
-                                  (c) => (c.id || c._id) === variant.colorId,
+                                  (c) =>
+                                    String(c.id || c._id) ===
+                                    String(variant.colorId)
                                 )?.code || "#888",
                             }}
                           />
@@ -611,52 +704,37 @@ export default function ProductForm() {
                       </div>
                     </div>
 
-                    {/* Image Upload Field */}
+                    {/* Local Image Selector Field */}
                     <div className="space-y-2">
                       <label className="block text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                        Upload Variant Images *
+                        Select Variant Images *
                       </label>
                       <div className="relative border-2 border-dashed border-border-light dark:border-border-dark rounded-lg p-4 text-center bg-bg-surface-light dark:bg-bg-surface-dark hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors">
                         <input
                           type="file"
                           multiple
                           accept="image/*"
-                          disabled={uploadingVariants[varIdx]}
-                          onChange={(e) => handleImageUpload(varIdx, e)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                          onChange={(e) => handleImageSelect(varIdx, e)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                         <div className="flex flex-col items-center gap-1 text-text-secondary-light dark:text-text-secondary-dark">
-                          {uploadingVariants[varIdx] ? (
-                            <>
-                              <Loader2
-                                size={20}
-                                className="animate-spin text-accent-brand"
-                              />
-                              <span className="text-xs font-semibold">
-                                Uploading...
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <ImageIcon size={20} />
-                              <span className="text-xs font-semibold">
-                                Click or drag images to upload
-                              </span>
-                            </>
-                          )}
+                          <ImageIcon size={20} />
+                          <span className="text-xs font-semibold">
+                            Click or drag images to select
+                          </span>
                         </div>
                       </div>
 
                       {/* Image Preview Grid */}
-                      {variant.images.length > 0 && (
+                      {variant.images && variant.images.length > 0 && (
                         <div className="grid grid-cols-4 gap-2 mt-2">
-                          {variant.images.map((url, imgIdx) => (
+                          {variant.images.map((imgObj, imgIdx) => (
                             <div
                               key={imgIdx}
                               className="relative group aspect-square rounded-md overflow-hidden border border-border-light dark:border-border-dark"
                             >
                               <img
-                                src={url}
+                                src={imgObj.url}
                                 alt="Preview"
                                 className="w-full h-full object-cover"
                               />
@@ -700,7 +778,7 @@ export default function ProductForm() {
                                   varIdx,
                                   szIdx,
                                   "size",
-                                  e.target.value,
+                                  e.target.value
                                 )
                               }
                               placeholder="Size"
@@ -715,7 +793,7 @@ export default function ProductForm() {
                                   varIdx,
                                   szIdx,
                                   "stock",
-                                  e.target.value,
+                                  e.target.value
                                 )
                               }
                               placeholder="Stock"
@@ -748,20 +826,24 @@ export default function ProductForm() {
               type="button"
               onClick={() => navigate("/products")}
               className="btn-secondary cursor-pointer"
-              disabled={isSubmitting}
+              disabled={combinedLoading}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="btn-primary flex items-center gap-2 cursor-pointer"
-              disabled={isSubmitting}
+              disabled={combinedLoading}
             >
-              {isSubmitting ? (
-                <Loader2 size={16} className="animate-spin" />
+              {combinedLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Saving...</span>
+                </>
               ) : (
                 <>
-                  <Save size={16} /> {isEditMode ? "Update Product" : "Save Product"}
+                  <Save size={16} />{" "}
+                  {isEditMode ? "Update Product" : "Save Product"}
                 </>
               )}
             </button>

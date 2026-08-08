@@ -43,19 +43,21 @@ export const fetchBannerById = createAsyncThunk(
   }
 );
 
-// ⚡ Create New Banner
+// ⚡ Add / Create New Banner
 export const addBanner = createAsyncThunk(
   'banners/add',
   async (bannerData, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post('/banners', bannerData);
-      // ব্যাকএন্ড সরাসরি ক্রিয়েট হওয়া অবজেক্ট পাঠালে সেটাই নেওয়া উত্তম
       return response.data?.data || response.data;
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to add banner'));
     }
   }
 );
+
+// 🟢 Alias: AddBanner.jsx-এ createBanner নামে ইম্পোর্ট করলেও যেন কাজ করে
+export const createBanner = addBanner;
 
 // ⚡ Update Banner
 export const updateBanner = createAsyncThunk(
@@ -90,7 +92,6 @@ export const toggleBannerStatus = createAsyncThunk(
   async ({ id, is_active }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.patch(`/banners/${id}/status`, { is_active });
-      // ব্যাকএন্ড আপডেট হওয়া ডাটা পাঠালে সেটা অথবা পাঠানো স্ট্যাটাস রিটার্ন
       return { id, is_active, ...response.data?.data };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to update banner status'));
@@ -146,7 +147,7 @@ const bannerSlice = createSlice({
         state.error = action.payload;
       })
 
-      // ── Add Banner ────────────────────────────────────────
+      // ── Add / Create Banner ──────────────────────────────
       .addCase(addBanner.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -169,8 +170,9 @@ const bannerSlice = createSlice({
       })
       .addCase(updateBanner.fulfilled, (state, action) => {
         state.loading = false;
+        const targetId = action.payload.id || action.payload._id;
         const index = state.items.findIndex(
-          (item) => String(item.id) === String(action.payload.id)
+          (item) => String(item.id || item._id) === String(targetId)
         );
         if (index !== -1) {
           state.items[index] = { ...state.items[index], ...action.payload };
@@ -184,14 +186,15 @@ const bannerSlice = createSlice({
       // ── Delete Banner ─────────────────────────────────────
       .addCase(deleteBanner.fulfilled, (state, action) => {
         state.items = state.items.filter(
-          (item) => String(item.id) !== String(action.payload)
+          (item) => String(item.id || item._id) !== String(action.payload)
         );
       })
 
       // ── Toggle Banner Status ──────────────────────────────
       .addCase(toggleBannerStatus.fulfilled, (state, action) => {
+        const targetId = action.payload.id || action.payload._id;
         const index = state.items.findIndex(
-          (item) => String(item.id) === String(action.payload.id)
+          (item) => String(item.id || item._id) === String(targetId)
         );
         if (index !== -1) {
           state.items[index] = { ...state.items[index], ...action.payload };
