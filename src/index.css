@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://cdn.msar.me/fonts/bangla/font.css'); /* 👈 সকল @import উপরে নিয়ে আসা হয়েছে */
+@import "tailwindcss";
 
 /* ── Design System: Tailwind v4 CSS Theme ──────────────────────────────── */
 @theme {
@@ -16,7 +16,7 @@
   --color-accent-brand: #3B82F6;
   --color-accent-success: #10B981;
   --color-accent-danger: #EF4444;
-  --color-accent-warning: #F59E0B;
+  --color-accent-warning: #F59E0B; 
 
   --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }

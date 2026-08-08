@@ -440,7 +440,7 @@ export default function ProductForm() {
 
   if (fetchingProduct) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-100">
         <Loader2 size={36} className="animate-spin text-accent-brand mb-2" />
         <p className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
           Loading product data...

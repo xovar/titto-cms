@@ -235,7 +235,7 @@ export default function EditBanner() {
 
   if (isBannerLoading && !selectedBanner) {
     return (
-      <div className="flex items-center justify-center min-h-[300px]">
+      <div className="flex items-center justify-center min-h-75">
         <Loader2 size={30} className="animate-spin text-blue-600" />
       </div>
     );
