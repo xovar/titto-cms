@@ -215,7 +215,7 @@ export default function AddBanner() {
 
       await dispatch(createBanner(bannerData)).unwrap();
       toast.success("Banner created successfully!");
-      navigate("/banners");
+      navigate("/promotions/banners");
     } catch (err) {
       console.error("Failed to create banner:", err);
       const errorMsg =

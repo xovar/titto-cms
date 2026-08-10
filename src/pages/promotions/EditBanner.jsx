@@ -220,7 +220,7 @@ export default function EditBanner() {
 
       await dispatch(updateBanner({ id, bannerData })).unwrap();
       toast.success("Banner updated successfully!");
-      navigate("/banners");
+      navigate("/promotions/banners");
     } catch (err) {
       console.error("Failed to update banner:", err);
       const errorMsg =

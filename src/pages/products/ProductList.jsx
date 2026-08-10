@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus, Search, Filter, RefreshCw } from 'lucide-react';
-import { toast } from 'react-toastify'; // ⚡ Toastify import করা হলো
+import { toast } from "react-toastify";
 import { fetchProducts, deleteProduct, fetchCategories, fetchBrands } from '../../store/slices/productSlice';
 
 function ProductCard({ product, onDelete }) {
@@ -16,6 +16,31 @@ function ProductCard({ product, onDelete }) {
   const currentVariant = product.variants?.[activeVariantIndex];
   const images = currentVariant?.images || [];
   const currentImage = images[imageIndex] || '';
+
+  // ⚡ একই সাইজের একাধিক ডাটা থাকলে সেগুলোকে গ্রুপ এবং স্টক যোগ করার লজিক
+  const mergedSizes = useMemo(() => {
+    if (!currentVariant?.sizes || currentVariant.sizes.length === 0) return [];
+    
+    const sizeMap = new Map();
+
+    currentVariant.sizes.forEach((s) => {
+      const sizeKey = String(s.size || s.name || '').trim();
+      if (!sizeKey) return;
+
+      if (sizeMap.has(sizeKey)) {
+        const existing = sizeMap.get(sizeKey);
+        existing.stock += Number(s.stock || 0);
+      } else {
+        sizeMap.set(sizeKey, {
+          id: s.id || sizeKey,
+          size: sizeKey,
+          stock: Number(s.stock || 0),
+        });
+      }
+    });
+
+    return Array.from(sizeMap.values());
+  }, [currentVariant]);
 
   const totalStock = product.variants?.reduce(
     (sum, v) => sum + (v.sizes?.reduce((s, sz) => s + (sz.stock || 0), 0) || 0), 0
@@ -151,10 +176,10 @@ function ProductCard({ product, onDelete }) {
           </div>
         )}
 
-        {/* Size Badges */}
-        {currentVariant?.sizes?.length > 0 && (
+        {/* ⚡ Size Badges (Aggregated) */}
+        {mergedSizes.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
-            {currentVariant.sizes.map((s, idx) => {
+            {mergedSizes.map((s, idx) => {
               const isOutOfStock = s.stock === 0;
               const isLowStock = s.stock > 0 && s.stock <= 3;
 
@@ -176,7 +201,7 @@ function ProductCard({ product, onDelete }) {
                       : `In stock (${s.stock})`
                   }
                 >
-                  {s.size || s.name}
+                  {s.size}
                   {isLowStock && <span className="ml-1 text-[9px] font-bold">({s.stock})</span>}
                 </span>
               );
@@ -250,7 +275,6 @@ export default function ProductList() {
     dispatch(fetchBrands());
   }, [dispatch]);
 
-  // 🗑️ Toastify সহ প্রডাক্ট ডিলিট হ্যান্ডলার
   const handleDelete = async (id, name) => {
     try {
       await dispatch(deleteProduct(id)).unwrap();
