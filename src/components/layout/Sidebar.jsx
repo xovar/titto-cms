@@ -17,6 +17,7 @@ import {
   Image,
   Megaphone,
   Maximize2,
+  Store, // 👈 Outlet-এর জন্য Icon ইম্পোর্ট করা হলো
 } from "lucide-react";
 import logo from "../../assets/titto.logo.png";
 
@@ -196,6 +197,18 @@ export default function Sidebar({ isOpen, onClose }) {
               </div>
             </div>
           </div>
+
+          {/* 🏬 Outlets link (নতুন যুক্ত করা হলো) */}
+          <NavLink
+            to="/outlets"
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "active" : ""}`
+            }
+            onClick={onClose}
+          >
+            <Store size={20} />
+            <span>Outlets</span>
+          </NavLink>
 
           {/* 📢 Banners & Popups accordion */}
           <div>
