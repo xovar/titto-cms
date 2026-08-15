@@ -13,6 +13,7 @@ const safeExtractArray = (data) => {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.data)) return data.data;
   if (Array.isArray(data?.products)) return data.products;
+  if (Array.isArray(data?.outlets)) return data.outlets;
   return [];
 };
 
@@ -43,14 +44,10 @@ export const addProduct = createAsyncThunk(
       const response = await axiosInstance.post('/products', productData);
       const resData = response.data?.data || response.data;
 
-      if (resData && typeof resData === 'object' && (resData.id || resData.productId)) {
-        return resData;
-      }
-
       const isFormData = productData instanceof FormData;
       const plainData = isFormData ? Object.fromEntries(productData.entries()) : productData;
 
-      const newId = resData?.productId || resData?.id || resData?.insertId;
+      const newId = resData?.productId || resData?.id;
       return {
         id: newId,
         ...plainData,
@@ -67,9 +64,12 @@ export const updateProduct = createAsyncThunk(
   'products/update',
   async ({ id, productData }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`/products/${id}`, productData);
-      const resData = response.data?.data || response.data;
-      return { id, ...(typeof resData === 'object' ? resData : {}) };
+      await axiosInstance.put(`/products/${id}`, productData);
+      
+      const isFormData = productData instanceof FormData;
+      const plainData = isFormData ? Object.fromEntries(productData.entries()) : productData;
+
+      return { id, ...plainData };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to update product'));
     }
@@ -172,6 +172,35 @@ export const deleteColor = createAsyncThunk('products/deleteColor', async (id, {
   }
 });
 
+// ── Outlet Thunks (⚡ New) ─────────────────────────────────────────────────
+
+export const fetchOutlets = createAsyncThunk('products/fetchOutlets', async (_, { rejectWithValue }) => {
+  try {
+    const response = await axiosInstance.get('/outlets');
+    return safeExtractArray(response.data);
+  } catch (error) {
+    return rejectWithValue(extractErrorMsg(error, 'Failed to fetch outlets'));
+  }
+});
+
+export const addOutlet = createAsyncThunk('products/addOutlet', async (data, { rejectWithValue }) => {
+  try {
+    const response = await axiosInstance.post('/outlets', data);
+    return response.data?.data || response.data;
+  } catch (error) {
+    return rejectWithValue(extractErrorMsg(error, 'Failed to add outlet'));
+  }
+});
+
+export const deleteOutlet = createAsyncThunk('products/deleteOutlet', async (id, { rejectWithValue }) => {
+  try {
+    await axiosInstance.delete(`/outlets/${id}`);
+    return id;
+  } catch (error) {
+    return rejectWithValue(extractErrorMsg(error, 'Failed to delete outlet'));
+  }
+});
+
 // ── Slice Definition ────────────────────────────────────────────────────────
 
 const productSlice = createSlice({
@@ -182,18 +211,21 @@ const productSlice = createSlice({
     categories: [],
     brands: [],
     colors: [],
+    outlets: [], // ⚡ Added Outlets State
 
     loading: {
       products: false,
       categories: false,
       brands: false,
       colors: false,
+      outlets: false,
     },
     error: {
       products: null,
       categories: null,
       brands: null,
       colors: null,
+      outlets: null,
     },
   },
   reducers: {
@@ -202,7 +234,7 @@ const productSlice = createSlice({
       if (state.error[target] !== undefined) {
         state.error[target] = null;
       } else {
-        state.error = { products: null, categories: null, brands: null, colors: null };
+        state.error = { products: null, categories: null, brands: null, colors: null, outlets: null };
       }
     },
   },
@@ -325,9 +357,30 @@ const productSlice = createSlice({
         if (action.payload) state.colors.push(action.payload);
       })
       .addCase(deleteColor.fulfilled, (state, action) => {
-        // Safe ID matching (id vs _id and String conversion)
         state.colors = state.colors.filter(
           (c) => String(c.id || c._id) !== String(action.payload)
+        );
+      })
+
+      // ── Outlets ───────────────────────────────────────────
+      .addCase(fetchOutlets.pending, (state) => {
+        state.loading.outlets = true;
+        state.error.outlets = null;
+      })
+      .addCase(fetchOutlets.fulfilled, (state, action) => {
+        state.loading.outlets = false;
+        state.outlets = action.payload;
+      })
+      .addCase(fetchOutlets.rejected, (state, action) => {
+        state.loading.outlets = false;
+        state.error.outlets = action.payload;
+      })
+      .addCase(addOutlet.fulfilled, (state, action) => {
+        if (action.payload) state.outlets.push(action.payload);
+      })
+      .addCase(deleteOutlet.fulfilled, (state, action) => {
+        state.outlets = state.outlets.filter(
+          (o) => String(o.id || o._id) !== String(action.payload)
         );
       });
   },

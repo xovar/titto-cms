@@ -16,20 +16,27 @@ import {
   fetchBrands,
   fetchColors,
   addProduct,
-  updateProduct, // ⚡ Redux slice এ updateProduct থাঙ্ক যোগ করে নেবেন
+  updateProduct,
 } from "../../store/slices/productSlice";
+import { fetchOutlets } from "../../store/slices/outletSlice";
 import axiosInstance from "../../api/axiosInstance";
 
 export default function ProductForm() {
-  const { id } = useParams(); // URL এ id থাকলে এটা Edit Mode
+  const { id } = useParams(); // URL এ id থাকলে Edit Mode
   const isEditMode = Boolean(id);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { categories, brands, colors, loading } = useSelector(
-    (state) => state.products,
+    (state) => state.products
   );
+  
+  // Redux store থেকে outlets ডাটা নিয়ে আসা
+  const outlets = useSelector(
+    (state) => state.outlets?.items || state.outlets?.outlets || []
+  );
+  
   const isSubmitting = loading?.products || false;
 
   // Form States
@@ -46,7 +53,7 @@ export default function ProductForm() {
     {
       colorId: "",
       images: [],
-      sizes: [{ size: "", stock: "" }],
+      sizes: [{ size: "", stock: "", outletId: "" }],
     },
   ]);
   const [uploadingVariants, setUploadingVariants] = useState({});
@@ -58,9 +65,10 @@ export default function ProductForm() {
     dispatch(fetchCategories());
     dispatch(fetchBrands());
     dispatch(fetchColors());
+    dispatch(fetchOutlets());
   }, [dispatch]);
 
-  // ⚡ Edit Mode হলে পুরনো প্রোডাক্টের ডাটা লোড করে ফিল্ড পপুলেট করা
+  // Edit Mode হলে পুরনো প্রোডাক্টের ডাটা লোড করে ফিল্ড পপুলেট করা
   useEffect(() => {
     if (isEditMode) {
       setFetchingProduct(true);
@@ -74,7 +82,7 @@ export default function ProductForm() {
           setDiscount(product.discount ? product.discount.toString() : "0");
           setCategoryId(product.category_id || product.category?.id || "");
           setBrandId(product.brand_id || product.brand?.id || "");
-          setGender(product.gender !== undefined ? product.gender : 0);
+          setGender(product.gender !== undefined ? Number(product.gender) : 0);
 
           if (product.variants && product.variants.length > 0) {
             const formattedVariants = product.variants.map((v) => ({
@@ -89,8 +97,9 @@ export default function ProductForm() {
                   ? v.sizes.map((s) => ({
                       size: s.size || "",
                       stock: s.stock !== undefined ? s.stock.toString() : "",
+                      outletId: s.outlet_id || s.outletId || "",
                     }))
-                  : [{ size: "", stock: "" }],
+                  : [{ size: "", stock: "", outletId: "" }],
             }));
             setVariants(formattedVariants);
           }
@@ -105,7 +114,7 @@ export default function ProductForm() {
     }
   }, [id, isEditMode]);
 
-  // Set default category, brand, color IDs only in ADD MODE
+  // Set default Category, Brand & Outlet only in ADD MODE
   useEffect(() => {
     if (!isEditMode) {
       if (categories?.length > 0 && !categoryId) {
@@ -119,19 +128,34 @@ export default function ProductForm() {
     }
   }, [categories, brands, categoryId, brandId, isEditMode]);
 
+  // Set default Color & Outlet for the initial variant in ADD MODE
   useEffect(() => {
-    if (!isEditMode && colors?.length > 0 && variants[0]?.colorId === "") {
-      const firstColorId = colors[0].id || colors[0]._id;
-      if (firstColorId) {
-        setVariants((prev) => [
-          {
-            ...prev[0],
-            colorId: firstColorId,
-          },
-        ]);
+    if (!isEditMode) {
+      const defaultColorId = colors[0]?.id || colors[0]?._id;
+      const defaultOutletId = outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id;
+
+      if (defaultColorId || defaultOutletId) {
+        setVariants((prev) =>
+          prev.map((v, i) =>
+            i === 0
+              ? {
+                  ...v,
+                  colorId: v.colorId || defaultColorId || "",
+                  sizes: v.sizes.map((s, sIdx) =>
+                    sIdx === 0
+                      ? { ...s, outletId: s.outletId || defaultOutletId || "" }
+                      : s
+                  ),
+                }
+              : v
+          )
+        );
       }
     }
-  }, [colors, isEditMode]);
+  }, [colors, outlets, isEditMode]);
+
+  // Helper to get default outlet ID
+  const getDefaultOutletId = () => outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id || "";
 
   // Handler functions for Variants
   const handleAddVariant = () => {
@@ -141,7 +165,7 @@ export default function ProductForm() {
       {
         colorId: defaultColorId,
         images: [],
-        sizes: [{ size: "", stock: "" }],
+        sizes: [{ size: "", stock: "", outletId: getDefaultOutletId() }],
       },
     ]);
   };
@@ -153,7 +177,7 @@ export default function ProductForm() {
 
   const handleVariantChange = (varIdx, field, val) => {
     setVariants((prev) =>
-      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v)),
+      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v))
     );
   };
 
@@ -191,7 +215,7 @@ export default function ProductForm() {
           headers: {
             "Content-Type": undefined,
           },
-        },
+        }
       );
 
       const uploadedUrls =
@@ -205,10 +229,10 @@ export default function ProductForm() {
           prev.map((v, i) => {
             if (i !== varIdx) return v;
             const uniqueImages = Array.from(
-              new Set([...v.images, ...uploadedUrls]),
+              new Set([...v.images, ...uploadedUrls])
             );
             return { ...v, images: uniqueImages };
-          }),
+          })
         );
         setValidationError("");
       }
@@ -233,8 +257,8 @@ export default function ProductForm() {
       prev.map((v, i) =>
         i === varIdx
           ? { ...v, images: v.images.filter((_, idx) => idx !== imgIdx) }
-          : v,
-      ),
+          : v
+      )
     );
 
     try {
@@ -256,9 +280,15 @@ export default function ProductForm() {
     setVariants((prev) =>
       prev.map((v, i) =>
         i === varIdx
-          ? { ...v, sizes: [...v.sizes, { size: "", stock: "" }] }
-          : v,
-      ),
+          ? {
+              ...v,
+              sizes: [
+                ...v.sizes,
+                { size: "", stock: "", outletId: getDefaultOutletId() },
+              ],
+            }
+          : v
+      )
     );
   };
 
@@ -270,7 +300,7 @@ export default function ProductForm() {
           ...v,
           sizes: v.sizes.filter((_, sIdx) => sIdx !== sizeIdx),
         };
-      }),
+      })
     );
   };
 
@@ -279,10 +309,10 @@ export default function ProductForm() {
       prev.map((v, i) => {
         if (i !== varIdx) return v;
         const updatedSizes = v.sizes.map((s, sIdx) =>
-          sIdx === sizeIdx ? { ...s, [field]: val } : s,
+          sIdx === sizeIdx ? { ...s, [field]: val } : s
         );
         return { ...v, sizes: updatedSizes };
-      }),
+      })
     );
   };
 
@@ -304,7 +334,7 @@ export default function ProductForm() {
 
       if (v.images.length === 0) {
         return setValidationError(
-          `Please upload at least one image for variant ${i + 1}`,
+          `Please upload at least one image for variant ${i + 1}`
         );
       }
 
@@ -312,12 +342,17 @@ export default function ProductForm() {
         const s = v.sizes[j];
         if (!s.size.trim()) {
           return setValidationError(
-            `Please enter size name for variant ${i + 1}, item ${j + 1}`,
+            `Please enter size name for variant ${i + 1}, item ${j + 1}`
           );
         }
-        if (s.stock === "" || parseInt(s.stock) < 0) {
+        if (s.stock === "" || parseInt(s.stock, 10) < 0) {
           return setValidationError(
-            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`,
+            `Stock cannot be negative or empty for variant ${i + 1}, item ${j + 1}`
+          );
+        }
+        if (!s.outletId) {
+          return setValidationError(
+            `Please select an outlet for variant ${i + 1}, item ${j + 1}`
           );
         }
       }
@@ -330,18 +365,21 @@ export default function ProductForm() {
       discount: parseFloat(discount) || 0,
       category_id: categoryId,
       brand_id: brandId,
-      gender: isNaN(parseInt(gender, 10)) ? 0 : parseInt(gender, 10),
+      gender: parseInt(gender, 10) || 0,
       variants: variants.map((v) => ({
         color_id: v.colorId,
         images: v.images,
         sizes: v.sizes.map((s) => ({
           size: s.size.trim(),
           stock: parseInt(s.stock, 10) || 0,
+          outlet_id: s.outletId,
         })),
       })),
     };
 
-    // ⚡ Edit/Update or Add Action Dispatch
+    console.log(payload);
+
+    // Edit/Update or Add Action Dispatch
     const actionToDispatch = isEditMode
       ? updateProduct({ id, productData: payload })
       : addProduct(payload);
@@ -353,7 +391,7 @@ export default function ProductForm() {
       })
       .catch((err) => {
         setValidationError(
-          err || `Failed to ${isEditMode ? "update" : "create"} product`,
+          err || `Failed to ${isEditMode ? "update" : "create"} product`
         );
       });
   };
@@ -584,7 +622,7 @@ export default function ProductForm() {
                             handleVariantChange(
                               varIdx,
                               "colorId",
-                              e.target.value,
+                              e.target.value
                             )
                           }
                           className="select-field"
@@ -603,7 +641,7 @@ export default function ProductForm() {
                             style={{
                               backgroundColor:
                                 colors.find(
-                                  (c) => (c.id || c._id) === variant.colorId,
+                                  (c) => (c.id || c._id) === variant.colorId
                                 )?.code || "#888",
                             }}
                           />
@@ -675,11 +713,11 @@ export default function ProductForm() {
                       )}
                     </div>
 
-                    {/* Size & Stock */}
+                    {/* Size, Stock & Outlet Section */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                          Sizes & Stock *
+                          Sizes, Stock & Outlet *
                         </label>
                         <button
                           type="button"
@@ -689,49 +727,91 @@ export default function ProductForm() {
                           <Plus size={12} /> Add Size
                         </button>
                       </div>
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
                         {variant.sizes.map((sz, szIdx) => (
-                          <div key={szIdx} className="flex gap-2 items-center">
-                            <input
-                              type="text"
-                              value={sz.size}
-                              onChange={(e) =>
-                                handleSizeChange(
-                                  varIdx,
-                                  szIdx,
-                                  "size",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="Size"
-                              className="input-field py-1.5! w-24 shrink-0"
-                              required
-                            />
-                            <input
-                              type="number"
-                              value={sz.stock}
-                              onChange={(e) =>
-                                handleSizeChange(
-                                  varIdx,
-                                  szIdx,
-                                  "stock",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="Stock"
-                              className="input-field py-1.5!"
-                              required
-                              min="0"
-                            />
-                            {variant.sizes.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSize(varIdx, szIdx)}
-                                className="text-text-secondary-light hover:text-accent-danger p-1.5 rounded-md hover:bg-accent-danger/10 cursor-pointer"
+                          <div
+                            key={szIdx}
+                            className="p-2 border border-border-light dark:border-border-dark rounded-lg space-y-2 bg-bg-surface-light dark:bg-bg-surface-dark"
+                          >
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={sz.size}
+                                onChange={(e) =>
+                                  handleSizeChange(
+                                    varIdx,
+                                    szIdx,
+                                    "size",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Size"
+                                className="input-field py-1.5! w-24 shrink-0"
+                                required
+                              />
+                              <input
+                                type="number"
+                                value={sz.stock}
+                                onChange={(e) =>
+                                  handleSizeChange(
+                                    varIdx,
+                                    szIdx,
+                                    "stock",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Stock"
+                                className="input-field py-1.5!"
+                                required
+                                min="0"
+                              />
+                              {variant.sizes.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSize(varIdx, szIdx)}
+                                  className="text-text-secondary-light hover:text-accent-danger p-1.5 rounded-md hover:bg-accent-danger/10 cursor-pointer"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Outlet Select Dropdown */}
+                            <div>
+                              <select
+                                value={sz.outletId}
+                                onChange={(e) =>
+                                  handleSizeChange(
+                                    varIdx,
+                                    szIdx,
+                                    "outletId",
+                                    e.target.value
+                                  )
+                                }
+                                className="select-field text-xs py-1.5!"
+                                required
                               >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
+                                <option value="" disabled>
+                                  Select Outlet
+                                </option>
+                                {outlets.map((outlet) => (
+                                  <option
+                                    key={
+                                      outlet.outlet_id ||
+                                      outlet.id ||
+                                      outlet._id
+                                    }
+                                    value={
+                                      outlet.outlet_id ||
+                                      outlet.id ||
+                                      outlet._id
+                                    }
+                                  >
+                                    {outlet.name || outlet.outlet_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -761,7 +841,8 @@ export default function ProductForm() {
                 <Loader2 size={16} className="animate-spin" />
               ) : (
                 <>
-                  <Save size={16} /> {isEditMode ? "Update Product" : "Save Product"}
+                  <Save size={16} />{" "}
+                  {isEditMode ? "Update Product" : "Save Product"}
                 </>
               )}
             </button>
