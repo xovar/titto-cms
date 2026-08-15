@@ -17,7 +17,8 @@ import {
   Image,
   Megaphone,
   Maximize2,
-  Store, // 👈 Outlet-এর জন্য Icon ইম্পোর্ট করা হলো
+  Store,
+  MonitorCheck, // 👈 POS-এর জন্য Icon ইম্পোর্ট করা হলো
 } from "lucide-react";
 import logo from "../../assets/titto.logo.png";
 
@@ -110,6 +111,18 @@ export default function Sidebar({ isOpen, onClose }) {
             <span>Dashboard</span>
           </NavLink>
 
+          {/* 💻 POS link (নতুন যুক্ত করা হলো) */}
+          <NavLink
+            to="/pos"
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "active" : ""}`
+            }
+            onClick={onClose}
+          >
+            <MonitorCheck size={20} />
+            <span>POS System</span>
+          </NavLink>
+
           {/* 📦 Products accordion */}
           <div>
             <button
@@ -198,7 +211,7 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* 🏬 Outlets link (নতুন যুক্ত করা হলো) */}
+          {/* 🏬 Outlets link */}
           <NavLink
             to="/outlets"
             className={({ isActive }) =>

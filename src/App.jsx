@@ -9,8 +9,11 @@ import Categories from "./pages/products/Categories";
 import Colors from "./pages/products/Colors";
 import Brands from "./pages/products/Brands";
 
-// 🏬 Outlet Page (নতুন যুক্ত করা হলো - ফাইল পাথ অনুযায়ী প্রয়োজন হলে পরিবর্তন করুন)
+// 🏬 Outlet Page
 import Outlets from "./pages/outlets/Outlets"; 
+
+// 💻 POS Page (নতুন যুক্ত করা হলো)
+import PosSystem from "./pages/POS/PosSystem"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
 
 // 🛍️ Order Pages
 import OrderList from "./pages/orders/OrderList";
@@ -38,6 +41,9 @@ export default function App() {
           {/* Dashboard */}
           <Route index element={<Dashboard />} />
 
+          {/* 💻 POS Route */}
+          <Route path="pos" element={<PosSystem />} />
+
           {/* 📦 Product Routes */}
           <Route path="products" element={<ProductList />} />
           <Route path="products/add" element={<ProductForm />} />
@@ -46,7 +52,7 @@ export default function App() {
           <Route path="products/colors" element={<Colors />} />
           <Route path="products/brands" element={<Brands />} />
 
-          {/* 🏬 Outlet Route (নতুন যুক্ত করা হলো) */}
+          {/* 🏬 Outlet Route */}
           <Route path="outlets" element={<Outlets />} />
 
           {/* 🛒 Order Routes */}

@@ -1,9 +1,173 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus, Search, Filter, RefreshCw } from 'lucide-react';
+import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus, Search, Filter, RefreshCw, QrCode, Printer, X } from 'lucide-react';
 import { toast } from "react-toastify";
+import JsBarcode from 'jsbarcode';
 import { fetchProducts, deleteProduct, fetchCategories, fetchBrands } from '../../store/slices/productSlice';
+
+// ⚡ বারকোড SVG রেন্ডার করার জন্য আলাদা সেফ কম্পোনেন্ট
+function BarcodeSVG({ value }) {
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (svgRef.current && value) {
+      try {
+        JsBarcode(svgRef.current, String(value), {
+          format: "CODE128",
+          width: 1.5,
+          height: 40,
+          displayValue: true,
+          fontSize: 11,
+          margin: 4
+        });
+      } catch (e) {
+        console.error("Failed to generate barcode:", e);
+      }
+    }
+  }, [value]);
+
+  return <svg ref={svgRef}></svg>;
+}
+
+// ⚡ বারকোড জেনারেটর এবং স্টিকার প্রিন্ট মোডাল (Portal ভিত্তিক)
+function BarcodeModal({ product, onClose }) {
+  const printRef = useRef(null);
+
+  const skuList = useMemo(() => {
+    const rawPrice = parseFloat(product?.price) || 0;
+    const discount = parseFloat(product?.discount) || 0;
+    const finalPrice = discount > 0 ? Math.round(rawPrice * (1 - discount / 100)) : rawPrice;
+
+    if (!product?.variants || product.variants.length === 0) {
+      return [{
+        sku: product?.sku || `SKU-${product?.id || product?._id || 'PROD'}`,
+        variant: '',
+        size: '',
+        price: finalPrice
+      }];
+    }
+
+    const items = [];
+    product.variants.forEach((v) => {
+      if (v.sizes && v.sizes.length > 0) {
+        v.sizes.forEach((s) => {
+          items.push({
+            sku: s.sku || v.sku || product.sku || `${product.id || 'PROD'}-${v.color?.name || 'V'}-${s.size}`,
+            variant: v.color?.name || '',
+            size: s.size,
+            price: finalPrice,
+          });
+        });
+      } else {
+        items.push({
+          sku: v.sku || product.sku || `${product.id || 'PROD'}-${v.color?.name || 'V'}`,
+          variant: v.color?.name || '',
+          size: '',
+          price: finalPrice,
+        });
+      }
+    });
+
+    return items;
+  }, [product]);
+
+  const handlePrint = () => {
+    const printContent = printRef.current?.innerHTML || '';
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Stickers - ${product?.name || 'Product'}</title>
+          <style>
+            @media print {
+              body { margin: 0; padding: 10px; font-family: sans-serif; }
+              .sticker-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+              .sticker-card {
+                border: 1px dashed #999;
+                padding: 8px;
+                width: 180px;
+                text-align: center;
+                box-sizing: border-box;
+                page-break-inside: avoid;
+              }
+              .title { font-size: 11px; font-weight: bold; margin-bottom: 2px; }
+              .sub-info { font-size: 10px; color: #555; margin-bottom: 2px; }
+              .price { font-size: 12px; font-weight: bold; margin-top: 2px; }
+              svg { max-width: 100%; height: auto; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sticker-grid">${printContent}</div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const modalUI = (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
+      <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col space-y-4 shadow-2xl border border-border-light dark:border-border-dark">
+        <div className="flex justify-between items-center border-b pb-3 border-border-light dark:border-border-dark">
+          <div>
+            <h3 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+              SKU & Barcode Stickers
+            </h3>
+            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">{product?.name}</p>
+          </div>
+          <button onClick={onClose} className="p-1 cursor-pointer rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-text-secondary-light dark:text-text-secondary-dark">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Stickers Container */}
+        <div className="flex-1 overflow-y-auto p-4 border rounded-lg bg-gray-50 dark:bg-gray-900/40 border-border-light dark:border-border-dark">
+          <div ref={printRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {skuList.map((item, idx) => (
+              <div key={idx} className="sticker-card bg-white text-black p-3 rounded-md border border-gray-300 shadow-sm flex flex-col items-center justify-between text-center">
+                <p className="title text-xs font-bold line-clamp-1 w-full">{product?.name}</p>
+                {(item.variant || item.size) && (
+                  <p className="sub-info text-[10px] text-gray-600 font-medium">
+                    {item.variant} {item.size ? `| Size: ${item.size}` : ''}
+                  </p>
+                )}
+                <div className="my-1 flex justify-center w-full">
+                  <BarcodeSVG value={item.sku} />
+                </div>
+                <p className="price text-xs font-bold border-t border-gray-200 pt-1 w-full">
+                  ৳{item.price}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex justify-end gap-3 pt-2">
+          <button onClick={onClose} className="btn-secondary text-xs px-4 py-2 cursor-pointer">
+            Cancel
+          </button>
+          <button onClick={handlePrint} className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5 cursor-pointer bg-accent-brand">
+            <Printer size={15} /> Print Stickers
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(modalUI, document.body);
+}
 
 function ProductCard({ product, onDelete }) {
   const navigate = useNavigate();
@@ -11,13 +175,13 @@ function ProductCard({ product, onDelete }) {
   const [activeVariantIndex, setActiveVariantIndex] = useState(0);
   const [imageIndex, setImageIndex] = useState(0);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showBarcode, setShowBarcode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const currentVariant = product.variants?.[activeVariantIndex];
   const images = currentVariant?.images || [];
   const currentImage = images[imageIndex] || '';
 
-  // ⚡ একই সাইজের একাধিক ডাটা থাকলে সেগুলোকে গ্রুপ এবং স্টক যোগ করার লজিক
   const mergedSizes = useMemo(() => {
     if (!currentVariant?.sizes || currentVariant.sizes.length === 0) return [];
     
@@ -46,9 +210,11 @@ function ProductCard({ product, onDelete }) {
     (sum, v) => sum + (v.sizes?.reduce((s, sz) => s + (sz.stock || 0), 0) || 0), 0
   ) || 0;
 
-  const discountedPrice = product.discount
-    ? (parseFloat(product.price) * (1 - parseFloat(product.discount) / 100)).toFixed(0)
-    : product.price;
+  const rawPrice = parseFloat(product.price) || 0;
+  const rawDiscount = parseFloat(product.discount) || 0;
+  const discountedPrice = rawDiscount > 0
+    ? (rawPrice * (1 - rawDiscount / 100)).toFixed(0)
+    : rawPrice;
 
   const handleVariantChange = (index) => {
     setActiveVariantIndex(index);
@@ -57,13 +223,13 @@ function ProductCard({ product, onDelete }) {
 
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
-    await onDelete(product.id, product.name);
+    await onDelete(product.id || product._id, product.name);
     setIsDeleting(false);
     setShowConfirm(false);
   };
 
   return (
-    <div className="card card-hover group relative overflow-hidden" id={`product-${product.id}`}>
+    <div className="card card-hover group relative overflow-hidden" id={`product-${product.id || product._id}`}>
       {/* Image Section */}
       <div className="relative aspect-4/3 overflow-hidden bg-background-light dark:bg-background-dark">
         {currentImage ? (
@@ -79,14 +245,12 @@ function ProductCard({ product, onDelete }) {
           </div>
         )}
 
-        {/* Discount badge */}
-        {parseFloat(product.discount) > 0 && (
+        {rawDiscount > 0 && (
           <div className="absolute top-3 left-3 bg-accent-danger text-white text-xs font-semibold px-2.5 py-1 rounded-full z-10">
-            -{product.discount}%
+            -{rawDiscount}%
           </div>
         )}
 
-        {/* Image dots */}
         {images.length > 1 && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
             {images.map((_, idx) => (
@@ -107,7 +271,14 @@ function ProductCard({ product, onDelete }) {
         {/* Action overlay */}
         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
           <button
-            onClick={() => navigate(`/products/edit/${product.id}`)}
+            onClick={() => setShowBarcode(true)}
+            className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
+            title="Print Barcode / SKU Sticker"
+          >
+            <QrCode size={14} />
+          </button>
+          <button
+            onClick={() => navigate(`/products/edit/${product.id || product._id}`)}
             className="p-2 cursor-pointer rounded-lg bg-surface-light dark:bg-surface-dark shadow-md hover:bg-accent-brand hover:text-white text-text-secondary-light dark:text-text-secondary-dark transition-colors"
             title="Edit"
           >
@@ -145,9 +316,9 @@ function ProductCard({ product, onDelete }) {
             <span className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
               ৳{discountedPrice}
             </span>
-            {parseFloat(product.discount) > 0 && (
+            {rawDiscount > 0 && (
               <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark line-through">
-                ৳{product.price}
+                ৳{rawPrice}
               </span>
             )}
           </div>
@@ -176,7 +347,7 @@ function ProductCard({ product, onDelete }) {
           </div>
         )}
 
-        {/* ⚡ Size Badges (Aggregated) */}
+        {/* Size Badges */}
         {mergedSizes.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 pt-1">
             {mergedSizes.map((s, idx) => {
@@ -221,6 +392,11 @@ function ProductCard({ product, onDelete }) {
           </div>
         </div>
       </div>
+
+      {/* Barcode Print Modal */}
+      {showBarcode && (
+        <BarcodeModal product={product} onClose={() => setShowBarcode(false)} />
+      )}
 
       {/* Delete confirmation modal */}
       {showConfirm && (
@@ -285,7 +461,7 @@ export default function ProductList() {
   };
 
   const handleResetFilters = () => {
-    setSearchTerm('');
+    SearchTerm('');
     setSelectedCategory('all');
     setSelectedBrand('all');
     setStockFilter('all');
@@ -319,7 +495,11 @@ export default function ProductList() {
         return matchesSearch && matchesCategory && matchesBrand && matchesStock;
       })
       .sort((a, b) => {
-        const getPrice = (p) => p.discount ? parseFloat(p.price) * (1 - parseFloat(p.discount) / 100) : parseFloat(p.price);
+        const getPrice = (p) => {
+          const pr = parseFloat(p.price) || 0;
+          const ds = parseFloat(p.discount) || 0;
+          return ds > 0 ? pr * (1 - ds / 100) : pr;
+        };
 
         if (sortBy === 'price_low') return getPrice(a) - getPrice(b);
         if (sortBy === 'price_high') return getPrice(b) - getPrice(a);
