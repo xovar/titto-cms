@@ -5,6 +5,7 @@ import dashboardReducer from './slices/dashboardSlice';
 import orderReducer from "./slices/orderSlice";
 import bannerReducer from "./slices/bannerSlice";
 import outletReducer from "./slices/outletSlice";
+import categoryReducer from "./slices/categorySlice"
 
 export const store = configureStore({
   reducer: {
@@ -14,5 +15,6 @@ export const store = configureStore({
     orders: orderReducer,
     banners: bannerReducer,
     outlets: outletReducer,
+    categories: categoryReducer
   },
 });

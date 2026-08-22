@@ -347,21 +347,21 @@ export default function PosSystem() {
           </div>
         ) : (
           /* এখানে items-start content-start যোগ করা হয়েছে */
-          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pr-1 items-start content-start">
-            {filteredProducts.length === 0 ? (
-              <div className="col-span-full text-center py-10 text-gray-400 text-sm">
-                No products found
-              </div>
-            ) : (
-              filteredProducts.map((p) => (
-                <ProductCard
-                  key={p.id || p._id}
-                  product={p}
-                  addToCart={addToCart}
-                />
-              ))
-            )}
-          </div>
+          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pr-1 auto-rows-max items-start content-start">
+  {filteredProducts.length === 0 ? (
+    <div className="col-span-full text-center py-10 text-gray-400 text-sm">
+      No products found
+    </div>
+  ) : (
+    filteredProducts.map((p) => (
+      <ProductCard
+        key={p.id || p._id}
+        product={p}
+        addToCart={addToCart}
+      />
+    ))
+  )}
+</div>
         )}
       </div>
 

@@ -17,10 +17,8 @@ export default function ProductCard({ product = {}, addToCart }) {
     return [];
   }, [product.variants]);
 
-  // ডিফল্ট কালার স্টেট
   const [selectedColor, setSelectedColor] = useState("");
 
-  // প্রোডাক্ট লোড হলে প্রথম কালার অটো সিলেক্ট হবে
   useEffect(() => {
     if (colorsList.length > 0) {
       setSelectedColor(colorsList[0].name);
@@ -41,10 +39,8 @@ export default function ProductCard({ product = {}, addToCart }) {
     return activeVariant?.sizes || [];
   }, [activeVariant]);
 
-  // ডিফল্ট সাইজ স্টেট
   const [selectedSize, setSelectedSize] = useState("");
 
-  // কালার পরিবর্তনের সাথে সাথে প্রথম এভেলেবল সাইজ অটো সিলেক্ট হবে
   useEffect(() => {
     if (sizesList.length > 0) {
       setSelectedSize(sizesList[0].size);
@@ -53,7 +49,7 @@ export default function ProductCard({ product = {}, addToCart }) {
     }
   }, [sizesList]);
 
-  // ৪. ডায়নামিক ইমেজ এক্সট্রাকশন (API Variants Image)
+  // ৪. ডায়নামিক ইমেজ এক্সট্রাকশন
   const image = useMemo(() => {
     if (activeVariant?.images && activeVariant.images.length > 0) {
       return activeVariant.images[0];
@@ -106,20 +102,20 @@ export default function ProductCard({ product = {}, addToCart }) {
   };
 
   return (
-    /* min-h-[450px] সরিয়ে স্বাভাবিক flex-col লেআউট দেওয়া হয়েছে */
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col p-3 h-full justify-between">
+    <div className="group w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col p-3 justify-between">
       <div>
-        {/* Product Image */}
-        <div className="relative w-full h-44 bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden mb-3 border border-gray-100 dark:border-gray-600">
+        {/* Image Section (Clean Screenshot Style) */}
+        <div className="relative w-full h-44 bg-white dark:bg-gray-900 rounded-lg overflow-hidden mb-3 border border-gray-100 dark:border-gray-700 flex items-center justify-center">
           {discount > 0 && (
             <span className="absolute top-2 left-2 z-10 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               -{discount}%
             </span>
           )}
+
           <img
             src={image}
             alt={title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = "https://via.placeholder.com/300?text=No+Image";
@@ -128,18 +124,18 @@ export default function ProductCard({ product = {}, addToCart }) {
         </div>
 
         {/* Category & Title */}
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-0.5">
           {categoryName}
         </p>
-        <h3 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate mb-2" title={title}>
+        <h3 className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate mb-2.5" title={title}>
           {title}
         </h3>
 
         {/* 1. COLOR SELECTION SECTION */}
         {colorsList.length > 0 && (
-          <div className="mb-2">
-            <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-              Color: <span className="text-black dark:text-white font-extrabold">{selectedColor}</span>
+          <div className="mb-2.5">
+            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+              Color: <span className="text-gray-800 dark:text-gray-200 font-bold">{selectedColor}</span>
             </span>
             <div className="flex gap-1.5 flex-wrap">
               {colorsList.map((c) => {
@@ -150,8 +146,8 @@ export default function ProductCard({ product = {}, addToCart }) {
                     type="button"
                     onClick={() => setSelectedColor(c.name)}
                     style={{ backgroundColor: c.code }}
-                    className={`w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm transition-transform ${
-                      isSelected ? "ring-2 ring-indigo-600 scale-125 z-10" : "opacity-70 hover:opacity-100"
+                    className={`w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600 shadow-sm transition-all ${
+                      isSelected ? "ring-2 ring-indigo-600 ring-offset-1 scale-110 z-10" : "opacity-60 hover:opacity-100"
                     }`}
                     title={c.name}
                   />
@@ -163,8 +159,8 @@ export default function ProductCard({ product = {}, addToCart }) {
 
         {/* 2. SIZE SELECTION SECTION */}
         {sizesList.length > 0 && (
-          <div className="mb-3">
-            <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
+          <div className="mb-2">
+            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Size:
             </span>
             <div className="flex gap-1 flex-wrap">
@@ -179,14 +175,13 @@ export default function ProductCard({ product = {}, addToCart }) {
                     disabled={isOutOfStock}
                     onClick={(e) => {
                       setSelectedSize(s.size);
-                      handleAddToCart(e, s.size);
                     }}
-                    className={`px-2 py-1 text-[11px] font-bold rounded border transition-all ${
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition-all ${
                       isOutOfStock
-                        ? "bg-gray-100 dark:bg-gray-700 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-600 line-through cursor-not-allowed"
+                        ? "bg-gray-100 dark:bg-gray-700/50 text-gray-300 dark:text-gray-500 border-gray-200 dark:border-gray-700 line-through cursor-not-allowed"
                         : isSelected
                         ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                        : "bg-gray-50 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                        : "bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200"
                     }`}
                   >
                     {s.size}
@@ -199,13 +194,13 @@ export default function ProductCard({ product = {}, addToCart }) {
       </div>
 
       {/* PRICE & ADD BUTTON */}
-      <div className="pt-2 mt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
+      <div className="pt-2.5 mt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
         <div>
           <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
             ৳{finalPrice.toFixed(0)}
           </span>
           {discount > 0 && (
-            <span className="text-xs text-gray-400 line-through ml-1">
+            <span className="text-xs text-gray-400 line-through ml-1.5 font-medium">
               ৳{price.toFixed(0)}
             </span>
           )}
@@ -214,9 +209,9 @@ export default function ProductCard({ product = {}, addToCart }) {
         <button
           type="button"
           onClick={(e) => handleAddToCart(e)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
+          className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
         >
-          <ShoppingCart size={14} /> Add
+          <ShoppingCart size={13} /> Add
         </button>
       </div>
     </div>
