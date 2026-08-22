@@ -1,27 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchProducts, fetchCategories } from "../../store/slices/productSlice";
-import {
-  Search,
-  Barcode,
-  ShoppingCart,
-  Trash2,
-  Plus,
-  Minus,
-  Printer,
-  CreditCard,
-  Banknote,
-  QrCode,
-  UserPlus,
-  RotateCcw,
-  Tag,
-  Loader2,
-} from "lucide-react";
+import { Search, Barcode, Loader2 } from "lucide-react";
+import ProductCard from "./ProductCard";
+import CartSection from "./CartSection";
 
 export default function PosSystem() {
   const dispatch = useDispatch();
 
-  // Redux Store থেকে ডেটা রিড করা
   const { items: products = [], categories: reduxCategories = [], loading, error } = useSelector(
     (state) => state.products || {}
   );
@@ -32,29 +18,28 @@ export default function PosSystem() {
   const [customer, setCustomer] = useState("Walk-in Customer");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [taxPercent] = useState(5); // ৫% ট্যাক্স
+  const [taxPercent] = useState(5);
   const [barcodeInput, setBarcodeInput] = useState("");
 
   const searchInputRef = useRef(null);
   const barcodeInputRef = useRef(null);
 
-  // ১. কম্পোনেন্ট লোড হলে Redux Thunk দিয়ে ডেটা লোড
   useEffect(() => {
     dispatch(fetchProducts());
     dispatch(fetchCategories());
   }, [dispatch]);
 
-  // Categories ফরম্যাটিং
   const categories = [
     "All",
-    ...new Set(
-      reduxCategories.length > 0
-        ? reduxCategories.map((c) => (typeof c === "object" ? c.name : c))
-        : products.map((p) => (typeof p.category === "object" ? p.category?.name : p.category)).filter(Boolean)
+    ...Array.from(
+      new Set(
+        reduxCategories.length > 0
+          ? reduxCategories.map((c) => (typeof c === "object" ? c.name : c))
+          : products.map((p) => (typeof p.category === "object" ? p.category?.name : p.category)).filter(Boolean)
+      )
     ),
   ];
 
-  // Add to Cart Logic
   const addToCart = useCallback((productItem) => {
     const itemId = productItem.id;
     const stockLimit = productItem.stock ?? 0;
@@ -79,7 +64,6 @@ export default function PosSystem() {
     });
   }, []);
 
-  // Barcode / Nested SKU Scan Logic
   const handleBarcodeScan = useCallback(
     (code) => {
       const cleanCode = String(code).trim().toLowerCase();
@@ -89,7 +73,6 @@ export default function PosSystem() {
       let matchedVariant = null;
       let matchedSize = null;
 
-      // nested variants -> sizes -> sku খুজে বের করা
       for (const p of products) {
         if (p.variants && Array.isArray(p.variants)) {
           for (const v of p.variants) {
@@ -106,7 +89,6 @@ export default function PosSystem() {
             }
           }
         }
-        // Direct barcode field check (যদি সরাসরি থাকে)
         if (!matchedProduct && String(p.barcode || "").toLowerCase() === cleanCode) {
           matchedProduct = p;
           break;
@@ -115,9 +97,8 @@ export default function PosSystem() {
       }
 
       if (matchedProduct && matchedSize) {
-        // Nested SKU পাওয়া গেলে নির্দিষ্ট Size ও Variant সহ Cart Item তৈরি
         const cartItem = {
-          id: `${matchedProduct.id}_${matchedVariant.id}_${matchedSize.id}`,
+          id: `${matchedProduct.id}_${matchedVariant.id || "v"}_${matchedSize.id || "s"}`,
           productId: matchedProduct.id,
           name: `${matchedProduct.name} (${matchedVariant.color?.name || ""} - Size: ${matchedSize.size})`,
           price: matchedProduct.price,
@@ -125,40 +106,35 @@ export default function PosSystem() {
           image: matchedVariant.images?.[0] || matchedProduct.image,
           sku: matchedSize.sku,
         };
-
         addToCart(cartItem);
-        setBarcodeInput("");
       } else if (matchedProduct) {
-        // সরাসরি প্রোডাক্ট মিললে (Default First Variant)
         const firstVariant = matchedProduct.variants?.[0];
         const firstSize = firstVariant?.sizes?.[0];
         const totalStock =
-          matchedProduct.stock ??
-          matchedProduct.quantity ??
-          firstSize?.stock ??
-          0;
+          firstSize?.stock ?? matchedProduct.stock ?? matchedProduct.quantity ?? 0;
 
         const cartItem = {
-          id: matchedProduct.id,
+          id: firstSize
+            ? `${matchedProduct.id}_${firstVariant?.id || "v"}_${firstSize.id || "s"}`
+            : matchedProduct.id,
           productId: matchedProduct.id,
-          name: matchedProduct.name,
+          name: firstSize
+            ? `${matchedProduct.name} (${firstVariant?.color?.name || ""} - Size: ${firstSize.size})`
+            : matchedProduct.name,
           price: matchedProduct.price,
           stock: totalStock,
           image: firstVariant?.images?.[0] || matchedProduct.image,
           sku: firstSize?.sku || matchedProduct.sku || "",
         };
-
         addToCart(cartItem);
-        setBarcodeInput("");
       } else {
         alert(`Product with barcode/SKU "${code}" not found!`);
-        setBarcodeInput("");
       }
+      setBarcodeInput("");
     },
     [products, addToCart]
   );
 
-  // ৩. Barcode Scanner Hardware Listener
   useEffect(() => {
     let buffer = "";
     let timeout;
@@ -184,7 +160,6 @@ export default function PosSystem() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleBarcodeScan]);
 
-  // Update Quantity
   const updateQty = (id, delta) => {
     setCart((prevCart) =>
       prevCart
@@ -203,17 +178,14 @@ export default function PosSystem() {
     );
   };
 
-  // Remove & Clear Cart
   const removeFromCart = (id) => setCart((prevCart) => prevCart.filter((item) => item.id !== id));
   const clearCart = () => setCart([]);
 
-  // Calculations
   const subtotal = cart.reduce((acc, item) => acc + Number(item.price || 0) * item.qty, 0);
   const discountAmount = (subtotal * Math.min(Math.max(discountPercent, 0), 100)) / 100;
   const taxAmount = ((subtotal - discountAmount) * taxPercent) / 100;
   const grandTotal = subtotal - discountAmount + taxAmount;
 
-  // Filtered Products (Nested SKU Search support)
   const filteredProducts = products.filter((p) => {
     const pCategory = typeof p.category === "object" ? p.category?.name : p.category;
     const matchesCategory = selectedCategory === "All" || pCategory === selectedCategory;
@@ -223,7 +195,6 @@ export default function PosSystem() {
     const directSkuMatch = String(p.sku || "").toLowerCase().includes(query);
     const barcodeMatch = String(p.barcode || "").toLowerCase().includes(query);
 
-    // Nested SKU Check
     const nestedSkuMatch = p.variants?.some((v) =>
       v.sizes?.some((s) => String(s.sku || "").toLowerCase().includes(query))
     );
@@ -231,7 +202,6 @@ export default function PosSystem() {
     return matchesCategory && (nameMatch || directSkuMatch || barcodeMatch || nestedSkuMatch);
   });
 
-  // Thermal Print Receipt Function
   const handlePrintReceipt = () => {
     if (cart.length === 0) return alert("Cart is empty!");
 
@@ -253,7 +223,7 @@ export default function PosSystem() {
               width: 280px; 
               padding: 8px; 
               font-size: 13px; 
-              font-weight: 600; /* Semi-bold base font for high contrast */
+              font-weight: 600;
               color: #000;
               margin: 0 auto; 
               line-height: 1.3;
@@ -307,18 +277,16 @@ export default function PosSystem() {
 
     printWindow.document.write(receiptContent);
     printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
+    printWindow.onload = () => {
+      printWindow.focus();
       printWindow.print();
       printWindow.close();
-    }, 250);
+    };
   };
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 overflow-hidden">
-      {/* 🛍️ LEFT SIDE: Product Grid & Search */}
       <div className="flex-1 flex flex-col p-4 overflow-hidden border-r border-gray-200 dark:border-gray-800">
-        {/* Top Bar: Search & Barcode Input */}
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -352,7 +320,6 @@ export default function PosSystem() {
           </form>
         </div>
 
-        {/* Categories Bar */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-thin">
           {categories.map((cat) => (
             <button
@@ -369,7 +336,6 @@ export default function PosSystem() {
           ))}
         </div>
 
-        {/* Loading / Error States */}
         {loading?.products ? (
           <div className="flex-1 flex flex-col items-center justify-center text-indigo-600">
             <Loader2 className="animate-spin mb-2" size={32} />
@@ -380,254 +346,43 @@ export default function PosSystem() {
             Failed to load products: {error.products}
           </div>
         ) : (
-          /* Product Cards Grid */
-          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pr-1">
+          /* এখানে items-start content-start যোগ করা হয়েছে */
+          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pr-1 items-start content-start">
             {filteredProducts.length === 0 ? (
               <div className="col-span-full text-center py-10 text-gray-400 text-sm">
                 No products found
               </div>
             ) : (
-              filteredProducts.map((p) => {
-                const itemId = p.id || p._id;
-                const productImage = p.variants?.[0]?.images?.[0] || p.image;
-                const totalStock =
-                  p.stock ??
-                  p.quantity ??
-                  p.variants?.reduce(
-                    (vSum, v) => vSum + (v.sizes?.reduce((sSum, s) => sSum + (s.stock || 0), 0) || 0),
-                    0
-                  ) ??
-                  0;
-
-                return (
-                  <div
-                    key={itemId}
-                    onClick={() =>
-                      addToCart({
-                        id: itemId,
-                        productId: itemId,
-                        name: p.name,
-                        price: p.price,
-                        stock: totalStock,
-                        image: productImage,
-                      })
-                    }
-                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 flex flex-col justify-between cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-500 hover:shadow-md transition-all active:scale-[0.98]"
-                  >
-                    <div>
-                      {/* Product Image */}
-                      <div className="w-full h-32 mb-2 bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden flex items-center justify-center">
-                        {productImage ? (
-                          <img
-                            src={productImage}
-                            alt={p.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = "https://via.placeholder.com/150?text=No+Image";
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs text-gray-400">No Image</span>
-                        )}
-                      </div>
-
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-semibold px-2 py-0.5 rounded">
-                          {p.brand?.name || "No Brand"}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded font-medium ${
-                            totalStock > 0
-                              ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                          }`}
-                        >
-                          {totalStock > 0 ? `${totalStock} left` : "Out of stock"}
-                        </span>
-                      </div>
-
-                      <h3 className="font-semibold text-sm line-clamp-1">{p.name}</h3>
-                    </div>
-
-                    <div className="mt-2 flex justify-between items-center">
-                      <span className="text-base font-bold text-indigo-600 dark:text-indigo-400">
-                        ৳{p.price}
-                      </span>
-                      <button className="p-1.5 bg-indigo-50 dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 rounded-lg">
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              filteredProducts.map((p) => (
+                <ProductCard
+                  key={p.id || p._id}
+                  product={p}
+                  addToCart={addToCart}
+                />
+              ))
             )}
           </div>
         )}
       </div>
 
-      {/* 🛒 RIGHT SIDE: Cart & Checkout Section */}
-      <div className="w-full lg:w-105 bg-white dark:bg-gray-800 flex flex-col h-full border-l border-gray-200 dark:border-gray-700 shadow-xl">
-        {/* Customer Selector */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2 mb-3">
-            <select
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-sm font-medium focus:outline-none"
-            >
-              <option value="Walk-in Customer">Walk-in Customer</option>
-              <option value="Rahim Uddin">Rahim Uddin (+8801700000000)</option>
-              <option value="Karim Chowdhury">Karim Chowdhury (+8801800000000)</option>
-            </select>
-            <button
-              title="Add Customer"
-              className="p-2 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <UserPlus size={18} />
-            </button>
-          </div>
-
-          <div className="flex justify-between items-center text-sm font-medium">
-            <span className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-              <ShoppingCart size={18} /> Cart Items ({cart.reduce((a, b) => a + b.qty, 0)})
-            </span>
-            <button
-              onClick={clearCart}
-              className="text-red-500 hover:text-red-600 flex items-center gap-1 text-xs font-semibold"
-            >
-              <RotateCcw size={14} /> Clear
-            </button>
-          </div>
-        </div>
-
-        {/* Cart Item List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400">
-              <ShoppingCart size={48} className="mb-2 stroke-1" />
-              <p className="text-sm">No items in the cart</p>
-            </div>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-sm truncate">{item.name}</h4>
-                  <p className="text-xs text-gray-500">৳{item.price} each</p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => updateQty(item.id, -1)}
-                    className="p-1 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:bg-gray-100"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="text-sm font-semibold w-5 text-center">{item.qty}</span>
-                  <button
-                    onClick={() => updateQty(item.id, 1)}
-                    className="p-1 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:bg-gray-100"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-bold text-sm">৳{Number(item.price) * item.qty}</p>
-                  <button
-                    onClick={() => removeFromCart(item.id)}
-                    className="text-red-400 hover:text-red-600 p-1"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Billing & Payment Calculations */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 space-y-2 text-sm">
-          <div className="flex justify-between text-gray-600 dark:text-gray-400">
-            <span>Subtotal</span>
-            <span>৳{subtotal.toFixed(2)}</span>
-          </div>
-
-          <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
-            <span className="flex items-center gap-1">
-              <Tag size={14} /> Discount (%)
-            </span>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              value={discountPercent}
-              onChange={(e) => setDiscountPercent(Number(e.target.value))}
-              className="w-16 px-2 py-0.5 text-right border rounded dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:outline-none"
-            />
-          </div>
-
-          <div className="flex justify-between text-gray-600 dark:text-gray-400">
-            <span>Tax ({taxPercent}%)</span>
-            <span>৳{taxAmount.toFixed(2)}</span>
-          </div>
-
-          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700 text-base font-bold">
-            <span>Total Payable</span>
-            <span className="text-indigo-600 dark:text-indigo-400">
-              ৳{grandTotal.toFixed(2)}
-            </span>
-          </div>
-
-          {/* Payment Method Selector */}
-          <div className="grid grid-cols-3 gap-2 pt-2">
-            {[
-              { id: "cash", label: "Cash", icon: Banknote },
-              { id: "card", label: "Card", icon: CreditCard },
-              { id: "bkash", label: "Mobile Pay", icon: QrCode },
-            ].map((method) => {
-              const Icon = method.icon;
-              return (
-                <button
-                  key={method.id}
-                  onClick={() => setPaymentMethod(method.id)}
-                  className={`flex items-center justify-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
-                    paymentMethod === method.id
-                      ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300"
-                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  <Icon size={14} />
-                  {method.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Checkout & Print Action */}
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <button
-              onClick={handlePrintReceipt}
-              className="flex items-center justify-center gap-2 py-3 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold rounded-xl transition-all shadow-sm active:scale-[0.98]"
-            >
-              <Printer size={18} /> Print
-            </button>
-            <button
-              onClick={() => {
-                if (cart.length === 0) return alert("Cart is empty!");
-                alert("Order placed successfully!");
-                clearCart();
-              }}
-              className="flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-md active:scale-[0.98]"
-            >
-              Pay ৳{grandTotal.toFixed(0)}
-            </button>
-          </div>
-        </div>
-      </div>
+      <CartSection
+        cart={cart}
+        customer={customer}
+        setCustomer={setCustomer}
+        clearCart={clearCart}
+        updateQty={updateQty}
+        removeFromCart={removeFromCart}
+        discountPercent={discountPercent}
+        setDiscountPercent={setDiscountPercent}
+        taxPercent={taxPercent}
+        subtotal={subtotal}
+        discountAmount={discountAmount}
+        taxAmount={taxAmount}
+        grandTotal={grandTotal}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        handlePrintReceipt={handlePrintReceipt}
+      />
     </div>
   );
 }
