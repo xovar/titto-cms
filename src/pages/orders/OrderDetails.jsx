@@ -2,9 +2,11 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { QRCodeSVG } from 'qrcode.react';
+import axiosInstance from '../../api/axiosInstance';
 import {
   fetchOrderById,
   updateOrderStatus,
+  updateOrderOutlet,
   clearSelectedOrder,
   clearOrderError,
 } from '../../store/slices/orderSlice';
@@ -25,6 +27,7 @@ import {
   AlertCircle,
   Truck,
   XCircle,
+  Store,
 } from 'lucide-react';
 
 import logo from "../../assets/titto-red.logo.png";
@@ -48,6 +51,13 @@ export default function OrderDetails() {
   const [status, setStatus] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success'); // 'success' | 'error'
+
+  // Outlet control state (mirrors the status control below)
+  const [outletId, setOutletId] = useState('');
+  const [outlets, setOutlets] = useState([]);
+  const [loadingOutlets, setLoadingOutlets] = useState(false);
+  const [outletMessage, setOutletMessage] = useState('');
+  const [outletMessageType, setOutletMessageType] = useState('success');
 
   // Memoized order data extraction
   const order = useMemo(() => {
@@ -121,13 +131,55 @@ export default function OrderDetails() {
     }
   }, [order?.status]);
 
-  // Auto-hide message after 4 seconds
+  // Set outlet selection when order loads
+  useEffect(() => {
+    if (order?.outletId) {
+      setOutletId(String(order.outletId));
+    }
+  }, [order?.outletId]);
+
+  // Fetch outlets that can actually fulfill THIS order — i.e. have enough
+  // stock, for every item in it, at the assigned outlet's chosen size(s).
+  // Re-runs whenever the order (and thus its items) changes.
+  useEffect(() => {
+    if (!id || id === 'undefined' || id === 'null') return;
+
+    let cancelled = false;
+
+    const loadOutlets = async () => {
+      setLoadingOutlets(true);
+      try {
+        const res = await axiosInstance.get(`/orders/${id}/available-outlets`);
+        const list = res.data?.data || res.data || [];
+        if (!cancelled) setOutlets(Array.isArray(list) ? list : []);
+      } catch (err) {
+        if (!cancelled) setOutlets([]);
+      } finally {
+        if (!cancelled) setLoadingOutlets(false);
+      }
+    };
+
+    loadOutlets();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, order?.items]);
+
+  // Auto-hide status message after 4 seconds
   useEffect(() => {
     if (message) {
       const timer = setTimeout(() => setMessage(''), 4000);
       return () => clearTimeout(timer);
     }
   }, [message]);
+
+  // Auto-hide outlet message after 4 seconds
+  useEffect(() => {
+    if (outletMessage) {
+      const timer = setTimeout(() => setOutletMessage(''), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [outletMessage]);
 
   // Handle status update
   const handleStatusUpdate = useCallback(async () => {
@@ -154,6 +206,32 @@ export default function OrderDetails() {
       setMessageType('error');
     }
   }, [dispatch, id, status, order?.status]);
+
+  // Handle outlet update
+  const handleOutletUpdate = useCallback(async () => {
+    if (!id || !outletId || String(outletId) === String(order?.outletId || '')) {
+      setOutletMessage('Please select a different outlet to update');
+      setOutletMessageType('error');
+      return;
+    }
+
+    setOutletMessage('');
+
+    try {
+      const resultAction = await dispatch(updateOrderOutlet({ id, outletId }));
+
+      if (updateOrderOutlet.fulfilled.match(resultAction)) {
+        setOutletMessage('Order outlet updated successfully!');
+        setOutletMessageType('success');
+      } else {
+        setOutletMessage(resultAction.payload || 'Failed to update outlet');
+        setOutletMessageType('error');
+      }
+    } catch (err) {
+      setOutletMessage('Failed to update outlet. Please try again.');
+      setOutletMessageType('error');
+    }
+  }, [dispatch, id, outletId, order?.outletId]);
 
   // Handle print
   const handlePrint = useCallback(() => {
@@ -331,6 +409,80 @@ export default function OrderDetails() {
           }`}>
             {messageType === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
             {message}
+          </p>
+        )}
+      </div>
+
+      {/* Outlet Update Control Box (প্রিন্টে হাইড থাকবে) */}
+      <div className="bg-surface-light dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark shadow-sm print:hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Store size={18} className="text-accent-brand" />
+            <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
+              Fulfilling Outlet:
+              {!order.outletId && (
+                <span className="ml-2 text-[11px] font-normal text-rose-500">
+                  (Not assigned yet — required before shipping)
+                </span>
+              )}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <select
+              value={outletId}
+              onChange={(e) => setOutletId(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark text-sm focus:outline-none focus:ring-2 focus:ring-accent-brand/50 min-w-[180px]"
+              disabled={updating || loadingOutlets}
+            >
+              <option value="">
+                {loadingOutlets
+                  ? 'Loading outlets...'
+                  : outlets.length === 0
+                  ? 'No outlet has enough stock'
+                  : '-- Select Outlet --'}
+              </option>
+              {outlets.map((o) => (
+                <option key={o.outlet_id ?? o.id} value={o.outlet_id ?? o.id}>
+                  {o.outlet_name ?? o.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleOutletUpdate}
+              disabled={updating || loadingOutlets || !outletId || String(outletId) === String(order.outletId || '')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-brand text-white font-medium text-sm rounded-lg hover:opacity-90 disabled:opacity-50 transition-all shadow-sm"
+            >
+              {updating ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Update
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {order.outletName && (
+          <p className="text-xs mt-3 text-text-secondary-light dark:text-text-secondary-dark">
+            Currently assigned: <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">{order.outletName}</span>
+          </p>
+        )}
+
+        {outletMessage && (
+          <p className={`text-xs mt-3 font-medium flex items-center gap-1 ${
+            outletMessageType === 'success' 
+              ? 'text-emerald-600 dark:text-emerald-400' 
+              : 'text-rose-600 dark:text-rose-400'
+          }`}>
+            {outletMessageType === 'success' ? <Check size={14} /> : <AlertCircle size={14} />}
+            {outletMessage}
           </p>
         )}
       </div>
@@ -587,7 +739,7 @@ export default function OrderDetails() {
         <div>
           <p className="font-semibold text-black">Customer Signature</p>
           <p className="text-[10px] text-gray-400 mt-1">Received in good condition</p>
-        </div>2
+        </div>
         <div className="text-right">
           <div className="border-b border-gray-400 w-44 ml-auto mb-1"></div>
           <p className="font-semibold text-black">Authorized Authority</p>

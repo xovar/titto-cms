@@ -70,6 +70,22 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
+// ⚡ Update Order Outlet Thunk (HTTP Method: PUT)
+// Mirrors updateOrderStatus — a small, single-field control on the Order
+// Details page, separate from the full updateOrder edit form.
+export const updateOrderOutlet = createAsyncThunk(
+  'orders/updateOutlet',
+  async ({ id, outletId }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/orders/${id}/outlet`, { outletId });
+      // Backend returns { message, id, outletId, outletName }
+      return { id, outletId, outletName: response.data?.outletName, data: response.data };
+    } catch (error) {
+      return rejectWithValue(extractErrorMsg(error, 'Failed to update order outlet'));
+    }
+  }
+);
+
 // ⚡ Update Entire Order Thunk
 export const updateOrder = createAsyncThunk(
   'orders/update',
@@ -205,6 +221,38 @@ const orderSlice = createSlice({
         }
       })
       .addCase(updateOrderStatus.rejected, (state, action) => {
+        state.updating = false;
+        state.error = action.payload;
+      })
+
+      // ── Update Order Outlet ───────────────────────────────
+      .addCase(updateOrderOutlet.pending, (state) => {
+        state.updating = true;
+        state.error = null;
+      })
+      .addCase(updateOrderOutlet.fulfilled, (state, action) => {
+        state.updating = false;
+        const { id, outletId, outletName } = action.payload;
+
+        // List item update
+        const index = state.items.findIndex((item) => item.id === id);
+        if (index !== -1) {
+          state.items[index].outletId = outletId;
+          state.items[index].outletName = outletName;
+        }
+
+        // Selected order update (সেফ চেক)
+        if (state.selectedOrder) {
+          if (state.selectedOrder.id === id) {
+            state.selectedOrder.outletId = outletId;
+            state.selectedOrder.outletName = outletName;
+          } else if (state.selectedOrder.data?.id === id) {
+            state.selectedOrder.data.outletId = outletId;
+            state.selectedOrder.data.outletName = outletName;
+          }
+        }
+      })
+      .addCase(updateOrderOutlet.rejected, (state, action) => {
         state.updating = false;
         state.error = action.payload;
       })
