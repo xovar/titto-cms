@@ -35,8 +35,21 @@ export default function ProductCard({ product = {}, addToCart }) {
   }, [product.variants, selectedColor]);
 
   // ৩. নির্বাচিত ভ্যারিয়েন্টের সাইজ লিস্ট বের করা
-  const sizesList = useMemo(() => {
-    return activeVariant?.sizes || [];
+   const sizesList = useMemo(() => {
+    const rawSizes = activeVariant?.sizes || [];
+
+    const merged = {};
+    rawSizes.forEach((s) => {
+      if (!s.size) return;
+      if (!merged[s.size]) {
+        merged[s.size] = { ...s, stock: Number(s.stock) || 0 };
+      } else {
+        // একই সাইজ একাধিকবার থাকলে stock যোগ করে দেওয়া হচ্ছে
+        merged[s.size].stock += Number(s.stock) || 0;
+      }
+    });
+
+    return Object.values(merged);
   }, [activeVariant]);
 
   const [selectedSize, setSelectedSize] = useState("");

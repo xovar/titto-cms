@@ -12,6 +12,7 @@ export default function CartSection({
   discountPercent,
   setDiscountPercent,
   taxPercent,
+  setTaxPercent,
   subtotal,
   discountAmount,
   taxAmount,
@@ -95,8 +96,25 @@ export default function CartSection({
           />
         </div>
 
+        <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+          <span className="flex items-center gap-1">
+            <Tag size={14} /> Tax (%)
+          </span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={taxPercent}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              setTaxPercent(isNaN(val) ? 0 : Math.max(0, Math.min(100, val)));
+            }}
+            className="w-16 px-2 py-0.5 text-right border rounded dark:bg-gray-800 border-gray-300 dark:border-gray-700 focus:outline-none"
+          />
+        </div>
+
         <div className="flex justify-between text-gray-600 dark:text-gray-400">
-          <span>Tax ({taxPercent}%)</span>
+          <span>Tax Amount</span>
           <span>৳{taxAmount.toFixed(2)}</span>
         </div>
 

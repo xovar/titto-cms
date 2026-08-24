@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchProducts, fetchCategories } from "../../store/slices/productSlice";
+import {
+  fetchProducts,
+  fetchCategories,
+} from "../../store/slices/productSlice";
 import { Search, Barcode, Loader2 } from "lucide-react";
 import ProductCard from "./ProductCard";
 import CartSection from "./CartSection";
@@ -8,9 +11,12 @@ import CartSection from "./CartSection";
 export default function PosSystem() {
   const dispatch = useDispatch();
 
-  const { items: products = [], categories: reduxCategories = [], loading, error } = useSelector(
-    (state) => state.products || {}
-  );
+  const {
+    items: products = [],
+    categories: reduxCategories = [],
+    loading,
+    error,
+  } = useSelector((state) => state.products || {});
 
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,7 +24,7 @@ export default function PosSystem() {
   const [customer, setCustomer] = useState("Walk-in Customer");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [taxPercent] = useState(5);
+  const [taxPercent, setTaxPercent] = useState(0);
   const [barcodeInput, setBarcodeInput] = useState("");
 
   const searchInputRef = useRef(null);
@@ -35,8 +41,12 @@ export default function PosSystem() {
       new Set(
         reduxCategories.length > 0
           ? reduxCategories.map((c) => (typeof c === "object" ? c.name : c))
-          : products.map((p) => (typeof p.category === "object" ? p.category?.name : p.category)).filter(Boolean)
-      )
+          : products
+              .map((p) =>
+                typeof p.category === "object" ? p.category?.name : p.category,
+              )
+              .filter(Boolean),
+      ),
     ),
   ];
 
@@ -57,7 +67,7 @@ export default function PosSystem() {
           return prevCart;
         }
         return prevCart.map((item) =>
-          item.id === itemId ? { ...item, qty: item.qty + 1 } : item
+          item.id === itemId ? { ...item, qty: item.qty + 1 } : item,
         );
       }
       return [...prevCart, { ...productItem, qty: 1 }];
@@ -78,7 +88,10 @@ export default function PosSystem() {
           for (const v of p.variants) {
             if (v.sizes && Array.isArray(v.sizes)) {
               const size = v.sizes.find(
-                (s) => String(s.sku || "").trim().toLowerCase() === cleanCode
+                (s) =>
+                  String(s.sku || "")
+                    .trim()
+                    .toLowerCase() === cleanCode,
               );
               if (size) {
                 matchedProduct = p;
@@ -89,7 +102,10 @@ export default function PosSystem() {
             }
           }
         }
-        if (!matchedProduct && String(p.barcode || "").toLowerCase() === cleanCode) {
+        if (
+          !matchedProduct &&
+          String(p.barcode || "").toLowerCase() === cleanCode
+        ) {
           matchedProduct = p;
           break;
         }
@@ -111,7 +127,10 @@ export default function PosSystem() {
         const firstVariant = matchedProduct.variants?.[0];
         const firstSize = firstVariant?.sizes?.[0];
         const totalStock =
-          firstSize?.stock ?? matchedProduct.stock ?? matchedProduct.quantity ?? 0;
+          firstSize?.stock ??
+          matchedProduct.stock ??
+          matchedProduct.quantity ??
+          0;
 
         const cartItem = {
           id: firstSize
@@ -132,7 +151,7 @@ export default function PosSystem() {
       }
       setBarcodeInput("");
     },
-    [products, addToCart]
+    [products, addToCart],
   );
 
   useEffect(() => {
@@ -140,7 +159,9 @@ export default function PosSystem() {
     let timeout;
 
     const handleKeyDown = (e) => {
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
+      if (
+        ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)
+      ) {
         return;
       }
 
@@ -174,39 +195,58 @@ export default function PosSystem() {
           }
           return item;
         })
-        .filter(Boolean)
+        .filter(Boolean),
     );
   };
 
-  const removeFromCart = (id) => setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  const removeFromCart = (id) =>
+    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
   const clearCart = () => setCart([]);
 
-  const subtotal = cart.reduce((acc, item) => acc + Number(item.price || 0) * item.qty, 0);
-  const discountAmount = (subtotal * Math.min(Math.max(discountPercent, 0), 100)) / 100;
+  const subtotal = cart.reduce(
+    (acc, item) => acc + Number(item.price || 0) * item.qty,
+    0,
+  );
+  const discountAmount =
+    (subtotal * Math.min(Math.max(discountPercent, 0), 100)) / 100;
   const taxAmount = ((subtotal - discountAmount) * taxPercent) / 100;
   const grandTotal = subtotal - discountAmount + taxAmount;
 
   const filteredProducts = products.filter((p) => {
-    const pCategory = typeof p.category === "object" ? p.category?.name : p.category;
-    const matchesCategory = selectedCategory === "All" || pCategory === selectedCategory;
+    const pCategory =
+      typeof p.category === "object" ? p.category?.name : p.category;
+    const matchesCategory =
+      selectedCategory === "All" || pCategory === selectedCategory;
 
     const query = searchQuery.toLowerCase();
     const nameMatch = p.name?.toLowerCase().includes(query);
-    const directSkuMatch = String(p.sku || "").toLowerCase().includes(query);
-    const barcodeMatch = String(p.barcode || "").toLowerCase().includes(query);
+    const directSkuMatch = String(p.sku || "")
+      .toLowerCase()
+      .includes(query);
+    const barcodeMatch = String(p.barcode || "")
+      .toLowerCase()
+      .includes(query);
 
     const nestedSkuMatch = p.variants?.some((v) =>
-      v.sizes?.some((s) => String(s.sku || "").toLowerCase().includes(query))
+      v.sizes?.some((s) =>
+        String(s.sku || "")
+          .toLowerCase()
+          .includes(query),
+      ),
     );
 
-    return matchesCategory && (nameMatch || directSkuMatch || barcodeMatch || nestedSkuMatch);
+    return (
+      matchesCategory &&
+      (nameMatch || directSkuMatch || barcodeMatch || nestedSkuMatch)
+    );
   });
 
   const handlePrintReceipt = () => {
     if (cart.length === 0) return alert("Cart is empty!");
 
     const printWindow = window.open("", "_blank");
-    if (!printWindow) return alert("Please allow pop-ups for receipt printing.");
+    if (!printWindow)
+      return alert("Please allow pop-ups for receipt printing.");
 
     const receiptContent = `
       <!DOCTYPE html>
@@ -256,7 +296,7 @@ export default function PosSystem() {
               <span class="item-name"><strong>${item.name}</strong> <small>x${item.qty}</small></span>
               <span class="item-price">৳${(Number(item.price) * item.qty).toFixed(2)}</span>
             </div>
-          `
+          `,
             )
             .join("")}
 
@@ -289,7 +329,10 @@ export default function PosSystem() {
       <div className="flex-1 flex flex-col p-4 overflow-hidden border-r border-gray-200 dark:border-gray-800">
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <Search
+              className="absolute left-3 top-2.5 text-gray-400"
+              size={18}
+            />
             <input
               ref={searchInputRef}
               type="text"
@@ -307,7 +350,10 @@ export default function PosSystem() {
             }}
             className="relative w-52"
           >
-            <Barcode className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <Barcode
+              className="absolute left-3 top-2.5 text-gray-400"
+              size={18}
+            />
             <input
               ref={barcodeInputRef}
               type="text"
@@ -348,20 +394,20 @@ export default function PosSystem() {
         ) : (
           /* এখানে items-start content-start যোগ করা হয়েছে */
           <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pr-1 auto-rows-max items-start content-start">
-  {filteredProducts.length === 0 ? (
-    <div className="col-span-full text-center py-10 text-gray-400 text-sm">
-      No products found
-    </div>
-  ) : (
-    filteredProducts.map((p) => (
-      <ProductCard
-        key={p.id || p._id}
-        product={p}
-        addToCart={addToCart}
-      />
-    ))
-  )}
-</div>
+            {filteredProducts.length === 0 ? (
+              <div className="col-span-full text-center py-10 text-gray-400 text-sm">
+                No products found
+              </div>
+            ) : (
+              filteredProducts.map((p) => (
+                <ProductCard
+                  key={p.id || p._id}
+                  product={p}
+                  addToCart={addToCart}
+                />
+              ))
+            )}
+          </div>
         )}
       </div>
 
@@ -375,6 +421,7 @@ export default function PosSystem() {
         discountPercent={discountPercent}
         setDiscountPercent={setDiscountPercent}
         taxPercent={taxPercent}
+        setTaxPercent={setTaxPercent}
         subtotal={subtotal}
         discountAmount={discountAmount}
         taxAmount={taxAmount}
