@@ -117,7 +117,7 @@ function BarcodeModal({ product, onClose }) {
   };
 
   const modalUI = (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-9999 p-4 animate-fade-in">
       <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col space-y-4 shadow-2xl border border-border-light dark:border-border-dark">
         <div className="flex justify-between items-center border-b pb-3 border-border-light dark:border-border-dark">
           <div>

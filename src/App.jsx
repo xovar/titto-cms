@@ -28,6 +28,7 @@ import PrivateRoute from "./pages/firebase/PrivateRoute";
 import AllBanners from "./pages/promotions/AllBanners";
 import AddBanner from "./pages/promotions/AddBanner";
 import EditBanner from "./pages/promotions/EditBanner";
+import Managers from "./pages/Manages/Managers";
 
 export default function App() {
   return (
@@ -64,6 +65,9 @@ export default function App() {
           <Route path="promotions/banners" element={<AllBanners />} />
           <Route path="promotions/add" element={<AddBanner />} />
           <Route path="promotions/edit/:id" element={<EditBanner />} />
+
+          {/* Manager */}
+          <Route path="/managers" element={<Managers/>}/>
         </Route>
       </Route>
 

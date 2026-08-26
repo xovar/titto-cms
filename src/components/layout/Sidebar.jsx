@@ -18,7 +18,8 @@ import {
   Megaphone,
   Maximize2,
   Store,
-  MonitorCheck, // 👈 POS-এর জন্য Icon ইম্পোর্ট করা হলো
+  MonitorCheck,
+  UserCheck, // 👈 Manager/Staff Management-এর জন্য Icon
 } from "lucide-react";
 import logo from "../../assets/titto.logo.png";
 
@@ -111,7 +112,7 @@ export default function Sidebar({ isOpen, onClose }) {
             <span>Dashboard</span>
           </NavLink>
 
-          {/* 💻 POS link (নতুন যুক্ত করা হলো) */}
+          {/* 💻 POS link */}
           <NavLink
             to="/pos"
             className={({ isActive }) =>
@@ -221,6 +222,18 @@ export default function Sidebar({ isOpen, onClose }) {
           >
             <Store size={20} />
             <span>Outlets</span>
+          </NavLink>
+
+                    {/* 👥 Managers link (নতুন অপশন) */}
+          <NavLink
+            to="/managers"
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "active" : ""}`
+            }
+            onClick={onClose}
+          >
+            <UserCheck size={20} />
+            <span>Managers</span>
           </NavLink>
 
           {/* 📢 Banners & Popups accordion */}

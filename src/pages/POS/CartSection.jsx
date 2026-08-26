@@ -22,7 +22,7 @@ export default function CartSection({
   handlePrintReceipt,
 }) {
   return (
-    <div className="w-full lg:w-[420px] bg-white dark:bg-gray-800 flex flex-col h-full border-l border-gray-200 dark:border-gray-700 shadow-xl">
+    <div className="w-full lg:w-105 bg-white dark:bg-gray-800 flex flex-col h-full border-l border-gray-200 dark:border-gray-700 shadow-xl">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2 mb-3">
           <select
