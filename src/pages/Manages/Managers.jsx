@@ -1,58 +1,51 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchOutlets } from "../../store/slices/outletSlice"; // আপনার স্লাইসের সঠিক পাথ দিন
+import { fetchOutlets } from "../../store/slices/outletSlice"; 
+import { 
+  fetchManagers, 
+  createManager, 
+  updateManager, 
+  deleteManager 
+} from "../../store/slices/managerSlice";
 import { UserPlus, Edit2, Trash2, Store, Mail, User, Lock, Loader2, X } from "lucide-react";
 
 export default function Managers() {
   const dispatch = useDispatch();
-  
-  // Redux Store থেকে আউটলেট এবং লোডিং স্টেট নেওয়া
-  const { items: outlets, loading: outletsLoading } = useSelector((state) => state.outlets);
 
-  const [managers, setManagers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { items: outlets, loading: outletsLoading } = useSelector((state) => state.outlets);
+  const { 
+    items: managers, 
+    loading: managersLoading, 
+    updating: managerUpdating, 
+    error: reduxError 
+  } = useSelector((state) => state.managers);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingManager, setEditingManager] = useState(null);
+  const [localError, setLocalError] = useState("");
 
-  // Form State
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     outletId: "",
   });
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  // ইনিশিয়ালি Redux এর মাধ্যমে Outlets এবং API দিয়ে Managers লোড করা
   useEffect(() => {
     dispatch(fetchOutlets());
-    fetchManagers();
+    dispatch(fetchManagers());
   }, [dispatch]);
 
-  const fetchManagers = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/users/managers");
-      const data = await res.json();
-      setManagers(data.data || data || []);
-    } catch (err) {
-      console.error("Failed to load managers", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleOpenModal = (manager = null) => {
-    setError("");
+    setLocalError("");
     if (manager) {
       setEditingManager(manager);
       setFormData({
         name: manager.name || "",
         email: manager.email || "",
-        password: "",
-        outletId: manager.outletId || manager.outlet_id || "",
+        password: "", // এডিটের সময় খালি থাকবে
+        outletId: manager.outlet_id || manager.outletId || "",
       });
     } else {
       setEditingManager(null);
@@ -61,45 +54,58 @@ export default function Managers() {
     setIsModalOpen(true);
   };
 
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingManager(null);
+    setFormData({ name: "", email: "", password: "", outletId: "" });
+    setLocalError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitLoading(true);
-    setError("");
+    setLocalError("");
 
-    try {
-      const url = editingManager
-        ? `/api/users/manager/${editingManager.id}`
-        : "/api/users/manager";
-      const method = editingManager ? "PUT" : "POST";
+    // Front-end Password Validation (কমপক্ষে ৬ ক্যারেক্টার হতে হবে)
+    if (formData.password.trim() !== "" && formData.password.length < 6) {
+      setLocalError("Password must be at least 6 characters long");
+      return;
+    }
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+    if (editingManager) {
+      // ⚡ Update Manager Payload
+      const updatePayload = {
+        id: editingManager.id,
+        name: formData.name,
+      };
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Operation failed");
+      // নতুন পাসওয়ার্ড ফিল্ডে কিছু লিখলেই কেবল ব্যাকএন্ডে পাঠানো হবে
+      if (formData.password.trim() !== "") {
+        updatePayload.password = formData.password;
+      }
 
-      setIsModalOpen(false);
-      fetchManagers();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitLoading(false);
+      const resultAction = await dispatch(updateManager(updatePayload));
+      if (updateManager.fulfilled.match(resultAction)) {
+        handleCloseModal();
+      }
+    } else {
+      // ⚡ Create Manager Action
+      const resultAction = await dispatch(
+        createManager({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          outletId: formData.outletId,
+        })
+      );
+      if (createManager.fulfilled.match(resultAction)) {
+        handleCloseModal();
+      }
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this manager?")) return;
-
-    try {
-      const res = await fetch(`/api/users/manager/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setManagers(managers.filter((m) => m.id !== id));
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
+  const handleDelete = (id) => {
+    if (window.confirm("Are you sure you want to delete this manager?")) {
+      dispatch(deleteManager(id));
     }
   };
 
@@ -126,7 +132,7 @@ export default function Managers() {
 
         {/* Managers Table */}
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-2xl overflow-hidden shadow-sm">
-          {loading ? (
+          {managersLoading ? (
             <div className="flex flex-col items-center justify-center p-16 gap-3">
               <Loader2 className="animate-spin text-indigo-600" size={32} />
               <p className="text-sm text-slate-500">Loading managers...</p>
@@ -150,39 +156,45 @@ export default function Managers() {
                       </td>
                     </tr>
                   ) : (
-                    managers.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40 transition-colors">
-                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-white flex items-center gap-3">
-                          <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                            <User size={16} />
-                          </div>
-                          {m.name}
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{m.email}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
-                            <Store size={13} />
-                            {m.outletName || m.outlet_name || "Unassigned"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleOpenModal(m)}
-                              className="p-2 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition"
-                            >
-                              <Edit2 size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(m.id)}
-                              className="p-2 text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    managers.map((m) => {
+                      const assignedOutlet = outlets.find(
+                        (o) => String(o.outlet_id || o.id) === String(m.outlet_id || m.outletId)
+                      );
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40 transition-colors">
+                          <td className="px-6 py-4 font-medium text-slate-900 dark:text-white flex items-center gap-3">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                              <User size={16} />
+                            </div>
+                            {m.name}
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{m.email}</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+                              <Store size={13} />
+                              {m.outlet_name || m.outletName || assignedOutlet?.outlet_name || assignedOutlet?.name || "Unassigned"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleOpenModal(m)}
+                                className="p-2 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(m.id)}
+                                className="p-2 text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg transition"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -195,28 +207,28 @@ export default function Managers() {
       {/* Modal - React Portal */}
       {isModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
             />
 
             <div className="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700/70 z-10 space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700">
-                <h2 className="text-lg font-bold cursor-pointer text-slate-900 dark:text-white">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                   {editingManager ? "Edit Manager" : "Create New Manager"}
                 </h2>
                 <button
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              {error && (
+              {(reduxError || localError) && (
                 <div className="p-3 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 text-xs rounded-xl border border-red-200 dark:border-red-900/50">
-                  {error}
+                  {localError || reduxError}
                 </div>
               )}
 
@@ -239,44 +251,41 @@ export default function Managers() {
                 </div>
 
                 {!editingManager && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                        Email
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3.5 top-3 text-slate-400" size={18} />
-                        <input
-                          type="email"
-                          required
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-slate-900 dark:text-white transition"
-                          placeholder="manager@example.com"
-                        />
-                      </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                      <input
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-slate-900 dark:text-white transition"
+                        placeholder="manager@example.com"
+                      />
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3.5 top-3 text-slate-400" size={18} />
-                        <input
-                          type="password"
-                          required
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-slate-900 dark:text-white transition"
-                          placeholder="••••••••"
-                        />
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
-                {/* Redux Data mapping dropdown */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                    {editingManager ? "New Password (Leave blank to keep current)" : "Password"}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                    <input
+                      type="password"
+                      required={!editingManager}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-slate-900 dark:text-white transition"
+                      placeholder={editingManager ? "Enter new password" : "••••••••"}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
                     Assign Outlet
@@ -285,9 +294,14 @@ export default function Managers() {
                     <Store className="absolute left-3.5 top-3 text-slate-400" size={18} />
                     <select
                       required
+                      disabled={Boolean(editingManager)}
                       value={formData.outletId}
                       onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm text-slate-900 dark:text-white transition cursor-pointer"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm transition ${
+                        editingManager 
+                          ? "opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800 text-slate-500" 
+                          : "focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-900 dark:text-white cursor-pointer"
+                      }`}
                     >
                       <option value="">
                         {outletsLoading ? "Loading Outlets..." : "Select Outlet"}
@@ -304,17 +318,17 @@ export default function Managers() {
                 <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={handleCloseModal}
                     className="px-4 cursor-pointer py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-medium transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={submitLoading}
+                    disabled={managerUpdating}
                     className="flex cursor-pointer items-center gap-2 px-5 py-2.5 text-sm bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-medium disabled:opacity-50 transition shadow-sm active:scale-95"
                   >
-                    {submitLoading && <Loader2 className="animate-spin" size={16} />}
+                    {managerUpdating && <Loader2 className="animate-spin" size={16} />}
                     <span>{editingManager ? "Save Changes" : "Create"}</span>
                   </button>
                 </div>
