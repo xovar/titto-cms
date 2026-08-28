@@ -8,6 +8,10 @@ const extractErrorMsg = (error, defaultMsg) => {
   return error.message || defaultMsg;
 };
 
+const user = JSON.parse(localStorage.getItem("admin_user"));
+
+console.log(user);
+
 // ── Manager Thunks ──────────────────────────────────────────────────────────
 
 // ⚡ Fetch All Managers

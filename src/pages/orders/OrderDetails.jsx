@@ -432,7 +432,7 @@ export default function OrderDetails() {
             <select
               value={outletId}
               onChange={(e) => setOutletId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark text-sm focus:outline-none focus:ring-2 focus:ring-accent-brand/50 min-w-[180px]"
+              className="px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark text-sm focus:outline-none focus:ring-2 focus:ring-accent-brand/50 min-w-45"
               disabled={updating || loadingOutlets}
             >
               <option value="">

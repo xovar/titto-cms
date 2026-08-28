@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../config/firebase"; // আপনার firebase.js ফাইলের সঠিক পাথ দিন
+import { auth } from "../../config/firebase";
 
 export default function LockScreen() {
   const [email, setEmail] = useState("");
@@ -17,19 +17,18 @@ export default function LockScreen() {
     setLoading(true);
 
     try {
-      // ১. Google Firebase দিয়ে Email/Password ভেরিফাই
+      // ১. Firebase Client Auth দিয়ে ভেরিফাই
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
-        password,
+        password
       );
 
       // ২. Firebase User & ID Token সংগ্রহ
       const user = userCredential.user;
       const idToken = await user.getIdToken();
 
-      // 🔗 ৩. আপনার Node.js ব্যাকএন্ড API-তে ভেরিফিকেশনের জন্য পাঠানো
-      // 💡 নোট: প্রয়োজন অনুযায়ী ব্যাকএন্ড ডোমেইন পরিবর্তন করুন (যেমন: https://yourdomain.com/api/auth/verify-admin)
+      // ৩. ব্যাকএন্ড API-তে ইউজার ও রোল ভেরিফিকেশনের জন্য পাঠানো
       const res = await fetch(
         "https://api.titto.com.bd/api/auth/verify-admin",
         {
@@ -38,36 +37,49 @@ export default function LockScreen() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
           },
-        },
+        }
       );
 
       const data = await res.json();
 
-      // ❌ ব্যাকএন্ড যদি বলে ইউজার অ্যাডমিন না (403 Forbidden) বা অন্য সমস্যা
       if (!res.ok) {
-        throw new Error(data.message || "আপনার অ্যাডমিন এক্সেস নেই!");
+        throw new Error(data.message || "লগইন করতে সমস্যা হয়েছে!");
       }
 
-      console.log("Logged in Admin User:", data.user);
+      // 🛑 ৪. কঠোর রোল ফিল্টারিং: শুধুমাত্র Admin রোল ঢুকতে পারবে
+      if (data.user.role !== "admin") {
+        throw new Error(
+          "অ্যাক্সেস ডিনাইড! ম্যানেজাররা এই সেন্ট্রাল অ্যাডমিন প্যানেলে লগইন করতে পারবেন না। আপনার জন্য নির্দিষ্ট POS প্যানেল ব্যবহার করুন।"
+        );
+      }
 
-      // optional: লোকাল স্টোরেজে ইউজারের তথ্য সেভ করে রাখতে পারেন
-      localStorage.setItem("admin_user", JSON.stringify(data.user));
+      // 🎯 ৫. অ্যাডমিনের তথ্য লোকাল স্টোরেজে সেট করা
+      const loggedInUserInfo = {
+        id: data.user.id,
+        firebaseUid: user.uid,
+        name: data.user.name || user.displayName || "Main Admin",
+        email: data.user.email || user.email,
+        role: "admin",
+        outletId: null,
+        outletName: "All Outlets",
+      };
 
-      // 🎯 ৪. ব্যাকএন্ড থেকে ভেরিফিকেশন সফল হলে ড্যাশবোর্ডে নেভিগেট
+      // LocalStorage-এ অ্যাডমিন ডাটা সেভ
+      localStorage.setItem("admin_user", JSON.stringify(loggedInUserInfo));
+
+      // 🎯 ৬. সেন্ট্রাল ড্যাশবোর্ডে রিডাইরেক্ট
       navigate("/", { replace: true });
     } catch (err) {
       console.error("Auth Error:", err);
 
-      // ফায়ারবেস বা ব্যাকএন্ডের এরর মেসেজ হ্যান্ডলিং
       if (
         err.code === "auth/invalid-credential" ||
-        err.code === "auth/user-not-found"
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/wrong-password"
       ) {
         setError("ইমেইল অথবা পাসওয়ার্ড ভুল হয়েছে!");
       } else if (err.code === "auth/too-many-requests") {
-        setError(
-          "অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।",
-        );
+        setError("অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।");
       } else {
         setError(err.message || "লগইন করতে সমস্যা হচ্ছে। আবার চেষ্টা করুন।");
       }
@@ -88,21 +100,20 @@ export default function LockScreen() {
           </div>
         </div>
 
-        {/* 👤 ইউজার প্রোফাইল পিকচার ও নাম */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden ring-4 ring-orange-500/80 shadow-md mb-3">
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250"
-              alt="David Dev"
-              className="w-full h-full object-cover"
-            />
+        {/* 👤 হেডার আইকন/মেসেজ */}
+        <div className="flex flex-col items-center mb-8 text-center">
+          <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xl mb-3 border-2 border-indigo-200 shadow-sm">
+            🔐
           </div>
-          <h2 className="text-base font-medium text-slate-700">David Dev</h2>
+          <h2 className="text-lg font-semibold text-slate-800">Super Admin Panel</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Sign in with central admin credentials
+          </p>
         </div>
 
         {/* ⚠️ এরর মেসেজ বক্স */}
         {error && (
-          <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg text-center">
+          <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg text-center font-medium">
             {error}
           </div>
         )}
@@ -118,7 +129,7 @@ export default function LockScreen() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@something.com"
+              placeholder="admin@something.com"
               required
               className="w-full px-4 py-2.5 bg-[#f4f0f8] border border-[#e8dfef] rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-sm"
             />
@@ -144,13 +155,13 @@ export default function LockScreen() {
             disabled={loading}
             className="w-full py-2.5 px-4 bg-[#6b51b6] hover:bg-[#5b439f] active:bg-[#4d3788] text-white font-medium text-sm rounded-lg shadow-sm transition-colors duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {loading ? "Verifying Admin..." : "Log In"}
+            {loading ? "Verifying Access..." : "Log In to Admin"}
           </button>
         </form>
       </div>
 
       <footer className="mt-8 text-center text-xs text-slate-400">
-        © 2026 Titto
+        © 2026 Titto Admin Panel
       </footer>
     </div>
   );
