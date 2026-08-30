@@ -329,7 +329,7 @@ export default function OrderList() {
                         <button
                           type="button"
                           onClick={() => handleEditClick(order)}
-                          className="inline-flex p-1.5 rounded-md hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-amber-500 transition-colors"
+                          className="inline-flex p-1.5 cursor-pointer rounded-md hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-amber-500 transition-colors"
                           title="Edit Order"
                         >
                           <Edit size={18} />
@@ -339,7 +339,7 @@ export default function OrderList() {
                         <button
                           type="button"
                           onClick={() => handleOpenDeleteModal(orderId)}
-                          className="inline-flex p-1.5 rounded-md hover:bg-rose-500/10 text-rose-500 transition-colors"
+                          className="inline-flex cursor-pointer p-1.5 rounded-md hover:bg-rose-500/10 text-rose-500 transition-colors"
                           title="Delete Order"
                         >
                           <Trash2 size={18} />

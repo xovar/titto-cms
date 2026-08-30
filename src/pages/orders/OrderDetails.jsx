@@ -488,47 +488,70 @@ export default function OrderDetails() {
       </div>
 
       {/* Printable Invoice Header (শুধু প্রিন্ট করার সময় দেখাবে) */}
-      <div className="hidden print:block border-b border-gray-300 pb-6 mb-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <img src={logo} className="h-12 w-auto object-contain" alt="Titto Logo" />
-            <p className="text-xs text-gray-500 mt-1">www.titto.com.bd | Support: +880 1831-698522</p>
+      <div className="hidden print:block w-[210mm] max-w-full mx-auto px-12 py-8 bg-white text-black font-sans box-border border-b-2 border-gray-800 pb-8 mb-8">
+  <div className="flex justify-between items-start gap-8">
+    
+    {/* Left Side: Logo & Company/Customer Info */}
+    <div className="flex-1">
+      {/* Brand Header */}
+      <div className="border-b border-gray-200 pb-4 mb-5">
+        <img src={logo} className="h-14 w-auto object-contain mb-2" alt="Titto Logo" />
+        <p className="text-xs text-gray-600 font-medium tracking-wide">
+          www.titto.com.bd <span className="mx-1 text-gray-400">|</span> Support: +880 1831-698522
+        </p>
+      </div>
 
-            <div className="mt-4">
-              <span className="text-[10px] pb-2 font-bold uppercase tracking-wider text-gray-400">INVOICE TO:</span>
-              <h3 className="text-xs pb-1 pt-1 text-gray-600">
-                <span className="font-extrabold">Name:</span> {customerName}
-              </h3>
-              <p className="text-xs pb-1 text-gray-600">
-                <span className="font-extrabold">Phone:</span> {order.phone || 'N/A'}
-              </p>
-              <p className="text-xs pb-1 text-gray-600 max-w-xs">
-                <span className="font-extrabold">Address:</span> {fullAddress}
-              </p>
-            </div>
-          </div>
-
-          {/* QR Code Section */}
-          <div className="flex flex-col items-end">
-            <div className="bg-white p-2 border border-gray-300 rounded-md shadow-sm">
-              <QRCodeSVG
-                value={`Invoice #${orderIdDisplay} | Customer: ${customerName} | Phone: ${order.phone || 'N/A'} | Amount: BDT ${grandTotal}`}
-                size={80}
-                level="M"
-              />
-            </div>
-            <div className="text-right mt-2">
-              <h2 className="text-base font-bold text-black">INVOICE #{orderIdDisplay}</h2>
-              <p className="text-xs text-gray-500">
-                Date: {orderDate}
-              </p>
-              <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase border border-gray-400 rounded">
-                Status: {order.status || 'Pending'}
-              </span>
-            </div>
-          </div>
+      {/* Customer Info Card */}
+      <div className="bg-gray-50/80 p-4 rounded-lg border border-gray-200">
+        <span className="text-[11px] font-black uppercase tracking-wider text-gray-500 block mb-2">
+          INVOICE TO
+        </span>
+        <div className="space-y-1.5 text-xs text-gray-800">
+          <p className="flex items-baseline">
+            <span className="w-20 font-bold text-gray-600 shrink-0">Name:</span> 
+            <span className="font-semibold text-gray-900">{customerName}</span>
+          </p>
+          <p className="flex items-baseline">
+            <span className="w-20 font-bold text-gray-600 shrink-0">Phone:</span> 
+            <span>{order.phone || 'N/A'}</span>
+          </p>
+          <p className="flex items-start">
+            <span className="w-20 font-bold text-gray-600 shrink-0">Address:</span> 
+            <span className="leading-normal">{fullAddress}</span>
+          </p>
         </div>
       </div>
+    </div>
+
+    {/* Right Side: QR Code & Invoice Details */}
+    <div className="flex flex-col items-end text-right min-w-45">
+      {/* QR Code Container */}
+      <div className="bg-white p-2.5 border-2 border-gray-200 rounded-lg shadow-sm mb-4">
+        <QRCodeSVG
+          value={`Invoice #${orderIdDisplay} | Customer: ${customerName} | Phone: ${order.phone || 'N/A'} | Amount: BDT ${grandTotal}`}
+          size={96}
+          level="M"
+        />
+      </div>
+
+      {/* Invoice Meta Data */}
+      <div className="space-y-1">
+        <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">
+          INVOICE #{orderIdDisplay}
+        </h2>
+        <p className="text-xs text-gray-600 font-medium">
+          Date: <span className="text-gray-900 font-semibold">{orderDate}</span>
+        </p>
+        <div className="pt-1">
+          <span className="inline-block px-3 py-1 text-[11px] font-extrabold uppercase border-2 border-gray-900 rounded-md bg-gray-900 text-white tracking-wider">
+            {order.status || 'Pending'}
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 
       {/* Main Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-4">

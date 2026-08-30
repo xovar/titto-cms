@@ -21,6 +21,17 @@
   --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
+@media print {
+  @page {
+    size: A4;
+    margin: 0; /* Margin handled via React padding */
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 /* ── Base Styles ───────────────────────────────────────────────────────── */
 @layer base {
   html {
