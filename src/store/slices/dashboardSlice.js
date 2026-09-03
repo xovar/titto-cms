@@ -9,14 +9,13 @@ const extractErrorMsg = (error, defaultMsg) => {
 };
 
 // দোকানের timezone সবসময় Asia/Dhaka ধরা হচ্ছে — admin যেই device/timezone থেকেই
-// লগইন করুক না কেন, "আজ" মানে বাংলাদেশের আজকের দিন, viewer-এর browser timezone নয়।
+// লগইন করুক না কেন, "আজ"/মাসের হিসাব সবসময় বাংলাদেশের ক্যালেন্ডার অনুযায়ী হবে।
 const DASHBOARD_TZ = 'Asia/Dhaka';
 
 // 'YYYY-MM-DD' ফরম্যাটে দিন বের করার হেল্পার (নির্দিষ্ট timezone অনুযায়ী, browser-independent)
 const toDateKey = (dateInput, timeZone = DASHBOARD_TZ) => {
   const d = new Date(dateInput);
   if (Number.isNaN(d.getTime())) return null;
-  // en-CA locale সরাসরি YYYY-MM-DD ফরম্যাট দেয়
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -38,85 +37,83 @@ const getYearMonthInTZ = (dateInput, timeZone = DASHBOARD_TZ) => {
   return { year, month };
 };
 
+// নির্দিষ্ট বছর/মাসে কয়দিন আছে (month 0-indexed)
+const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+
 const isCancelled = (order) => order.status === 'cancelled';
 
-// একটা order থেকে revenue বের করা (price + delivery_charge, cancelled বাদ দিয়ে হিসেব হবে caller-এ)
+// একটা order থেকে revenue বের করা (price + deliveryCharge, cancelled বাদ দিয়ে হিসেব হবে caller-এ)
 const orderAmount = (order) => {
   const price = Number(order.price) || 0;
   const delivery = Number(order.deliveryCharge) || 0;
   return price + delivery;
 };
 
-// ── Thunk: সব dashboard ডেটা এক জায়গায় বানানো ──────────────────────────────
+// ── Thunk: নির্দিষ্ট মাসের dashboard ডেটা বানানো ────────────────────────────
+// payload: { year, month } — month 0-indexed (জানুয়ারি=0)। না দিলে আজকের মাস ধরা হবে।
 // ব্যাকএন্ডে আলাদা /dashboard এন্ডপয়েন্ট নেই ধরে নিয়ে, /orders থেকে ডেটা টেনে
 // client-side এ stats/chart/recent-orders calculate করা হচ্ছে।
 export const fetchDashboardData = createAsyncThunk(
   'dashboard/fetchData',
-  async (_, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
+      const now = new Date();
+      const currentYM = getYearMonthInTZ(now);
+
+      const year = payload?.year ?? currentYM.year;
+      const month = payload?.month ?? currentYM.month;
+
+      const isCurrentMonth = year === currentYM.year && month === currentYM.month;
+      const todayKey = isCurrentMonth ? toDateKey(now) : null;
+
+      // আগের মাস (growth তুলনার জন্য) — বছর বদলের ক্ষেত্রেও ঠিক থাকবে
+      const prevMonthDate = new Date(Date.UTC(year, month - 1, 1));
+      const { year: prevYear, month: prevMonth } = getYearMonthInTZ(prevMonthDate);
+
       // বড় রেঞ্জের অর্ডার একবারে টেনে আনা (ব্যাকএন্ডে limit বেশি না দিলে
       // pagination.total অনুযায়ী পরে loop করে আরও পেজ টানার প্রয়োজন হতে পারে)
       const response = await axiosInstance.get('/orders?page=1&limit=1000&sort=-created_at');
-      const orders = response.data?.data || [];
-      const pagination = response.data?.pagination;
+      const allOrders = response.data?.data || [];
 
-      const now = new Date();
-      const todayKey = toDateKey(now);
+      // ── Selected month-এর অর্ডার আলাদা করা ──────────────────────────────
+      const monthOrders = [];
+      let prevMonthRevenue = 0;
+      let prevMonthSales = 0;
 
-      const { year: thisYear, month: thisMonth } = getYearMonthInTZ(now);
-      const lastMonthDate = new Date(Date.UTC(thisYear, thisMonth - 1, 1));
-      const { year: lastMonthYear, month: lastMonth } = getYearMonthInTZ(lastMonthDate);
+      allOrders.forEach((order) => {
+        const { year: oYear, month: oMonth } = getYearMonthInTZ(order.createdAt);
+        if (oYear === year && oMonth === month) {
+          monthOrders.push(order);
+        } else if (oYear === prevYear && oMonth === prevMonth) {
+          prevMonthSales += 1;
+          if (!isCancelled(order)) prevMonthRevenue += orderAmount(order);
+        }
+      });
+
+      // ── সিলেক্টেড মাসের প্রতিদিনের bucket বানানো ─────────────────────────
+      const totalDays = daysInMonth(year, month);
+      const chartMap = new Map();
+      for (let day = 1; day <= totalDays; day += 1) {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        chartMap.set(key, { date: key, label: String(day), sales: 0, revenue: 0 });
+      }
 
       let totalRevenue = 0;
       let todaySales = 0;
       let todayRevenue = 0;
-      let thisMonthRevenue = 0;
-      let thisMonthSales = 0;
-      let lastMonthRevenue = 0;
-      let lastMonthSales = 0;
 
-      // শেষ ৭ দিনের chart-এর জন্য বাকেট বানানো (Asia/Dhaka ক্যালেন্ডার দিন অনুযায়ী)
-      const chartDays = 7;
-      const chartMap = new Map();
-      for (let i = chartDays - 1; i >= 0; i -= 1) {
-        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        const key = toDateKey(d);
-        chartMap.set(key, {
-          date: key,
-          label: d.toLocaleDateString('en-US', { weekday: 'short', timeZone: DASHBOARD_TZ }),
-          sales: 0,
-          revenue: 0,
-        });
-      }
-
-      orders.forEach((order) => {
+      monthOrders.forEach((order) => {
         const dateKey = toDateKey(order.createdAt);
         const cancelled = isCancelled(order);
         const amount = orderAmount(order);
 
-        // Total revenue: cancelled অর্ডার বাদ দিয়ে হিসেব করা হচ্ছে
-        if (!cancelled) {
-          totalRevenue += amount;
-        }
+        if (!cancelled) totalRevenue += amount;
 
-        if (dateKey === todayKey) {
+        if (todayKey && dateKey === todayKey) {
           todaySales += 1;
           if (!cancelled) todayRevenue += amount;
         }
 
-        if (dateKey) {
-          const { year: orderYear, month: orderMonth } = getYearMonthInTZ(order.createdAt);
-
-          if (orderMonth === thisMonth && orderYear === thisYear) {
-            thisMonthSales += 1;
-            if (!cancelled) thisMonthRevenue += amount;
-          } else if (orderMonth === lastMonth && orderYear === lastMonthYear) {
-            lastMonthSales += 1;
-            if (!cancelled) lastMonthRevenue += amount;
-          }
-        }
-
-        // Chart bucket-এ যোগ করা (শুধু শেষ ৭ দিনের মধ্যে হলে)
         if (dateKey && chartMap.has(dateKey)) {
           const bucket = chartMap.get(dateKey);
           bucket.sales += 1;
@@ -124,24 +121,32 @@ export const fetchDashboardData = createAsyncThunk(
         }
       });
 
-      // % গ্রোথ ক্যালকুলেশন (আগের মাসে ডেটা না থাকলে 0 দেখানো হবে, divide-by-zero এড়াতে)
+      // মাসের যতদিন পার হয়েছে তার গড় (চলতি মাস হলে আজ পর্যন্ত, নয়তো পুরো মাস)
+      const elapsedDays = isCurrentMonth ? new Date(now.toLocaleString('en-US', { timeZone: DASHBOARD_TZ })).getDate() : totalDays;
+      const avgDailySales = elapsedDays > 0 ? Math.round((monthOrders.length / elapsedDays) * 10) / 10 : 0;
+      const avgDailyRevenue = elapsedDays > 0 ? Math.round((totalRevenue / elapsedDays) * 100) / 100 : 0;
+
+      // % গ্রোথ ক্যালকুলেশন (আগের মাসে ডেটা না থাকলে 0/100% দেখানো হবে, divide-by-zero এড়াতে)
       const pctGrowth = (current, previous) => {
         if (!previous) return current > 0 ? 100 : 0;
         return Math.round(((current - previous) / previous) * 100);
       };
 
       const stats = {
-        totalSales: pagination?.total ?? orders.length,
+        isCurrentMonth,
+        totalSales: monthOrders.length,
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         todaySales,
         todayRevenue: Math.round(todayRevenue * 100) / 100,
-        salesGrowth: pctGrowth(thisMonthSales, lastMonthSales),
-        revenueGrowth: pctGrowth(thisMonthRevenue, lastMonthRevenue),
+        avgDailySales,
+        avgDailyRevenue,
+        salesGrowth: pctGrowth(monthOrders.length, prevMonthSales),
+        revenueGrowth: pctGrowth(totalRevenue, prevMonthRevenue),
       };
 
       const salesChart = Array.from(chartMap.values());
 
-      const recentOrders = [...orders]
+      const recentOrders = [...monthOrders]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 5)
         .map((order) => ({
@@ -154,7 +159,7 @@ export const fetchDashboardData = createAsyncThunk(
           createdAt: order.createdAt,
         }));
 
-      return { stats, salesChart, recentOrders };
+      return { year, month, stats, salesChart, recentOrders };
     } catch (error) {
       return rejectWithValue(extractErrorMsg(error, 'Failed to load dashboard data'));
     }
@@ -166,6 +171,8 @@ export const fetchDashboardData = createAsyncThunk(
 const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState: {
+    selectedYear: null,
+    selectedMonth: null,
     stats: null,
     salesChart: [],
     recentOrders: [],
@@ -185,6 +192,8 @@ const dashboardSlice = createSlice({
       })
       .addCase(fetchDashboardData.fulfilled, (state, action) => {
         state.loading = false;
+        state.selectedYear = action.payload.year;
+        state.selectedMonth = action.payload.month;
         state.stats = action.payload.stats;
         state.salesChart = action.payload.salesChart;
         state.recentOrders = action.payload.recentOrders;

@@ -9,9 +9,9 @@ import {
   Tooltip,
 } from 'recharts';
 
-// dashboardSlice.fetchDashboardData থেকে আসা প্রতিটি পয়েন্ট:
-// { date: 'YYYY-MM-DD', label: 'Mon', sales: number, revenue: number }
-export default function SalesChart({ data = [] }) {
+// dashboardSlice.fetchDashboardData থেকে আসা প্রতিটি পয়েন্ট (এখন পুরো মাসের প্রতিদিন):
+// { date: 'YYYY-MM-DD', label: '1'..'31', sales: number, revenue: number }
+export default function SalesChart({ data = [], title }) {
   const hasData = data.some((d) => d.sales > 0 || d.revenue > 0);
 
   return (
@@ -21,13 +21,13 @@ export default function SalesChart({ data = [] }) {
           Sales Overview
         </h2>
         <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-          Last 7 days
+          {title || 'This month'}
         </span>
       </div>
 
       {!hasData ? (
         <div className="h-64 flex items-center justify-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          এখনো কোনো অর্ডার নেই এই সপ্তাহে
+          এই মাসে এখনো কোনো অর্ডার নেই
         </div>
       ) : (
         <div className="h-64">
@@ -47,6 +47,8 @@ export default function SalesChart({ data = [] }) {
                 fontSize={12}
                 stroke="currentColor"
                 opacity={0.6}
+                interval="preserveStartEnd"
+                minTickGap={20}
               />
               <YAxis
                 tickLine={false}
@@ -89,4 +91,5 @@ SalesChart.propTypes = {
       revenue: PropTypes.number,
     })
   ),
+  title: PropTypes.string,
 };
