@@ -21,6 +21,10 @@ import {
 import { fetchOutlets } from "../../store/slices/outletSlice";
 import axiosInstance from "../../api/axiosInstance";
 
+// Small helper: always normalize ids to strings so <select> value matching
+// never breaks due to number vs string mismatches (e.g. 5 vs "5").
+const toIdStr = (val) => (val === undefined || val === null ? "" : String(val));
+
 export default function ProductForm() {
   const { id } = useParams(); // URL এ id থাকলে Edit Mode
   const isEditMode = Boolean(id);
@@ -31,12 +35,12 @@ export default function ProductForm() {
   const { categories, brands, colors, loading } = useSelector(
     (state) => state.products
   );
-  
-  // Redux store থেকে outlets ডাটা নিয়ে আসা
+
+  // Redux store থেকে outlets ডাটা নিয়ে আসা
   const outlets = useSelector(
     (state) => state.outlets?.items || state.outlets?.outlets || []
   );
-  
+
   const isSubmitting = loading?.products || false;
 
   // Form States
@@ -80,13 +84,22 @@ export default function ProductForm() {
           setDescription(product.description || "");
           setPrice(product.price ? product.price.toString() : "");
           setDiscount(product.discount ? product.discount.toString() : "0");
-          setCategoryId(product.category_id || product.category?.id || "");
-          setBrandId(product.brand_id || product.brand?.id || "");
+          setCategoryId(
+            toIdStr(product.category_id || product.category?.id || product.category?._id)
+          );
+          setBrandId(
+            toIdStr(product.brand_id || product.brand?.id || product.brand?._id)
+          );
           setGender(product.gender !== undefined ? Number(product.gender) : 0);
 
           if (product.variants && product.variants.length > 0) {
             const formattedVariants = product.variants.map((v) => ({
-              colorId: v.color_id || v.colorId || "",
+              // Normalize to string AND fall back to a nested color object
+              // in case the API returns { color: { id, name, code } }
+              // instead of a flat color_id field.
+              colorId: toIdStr(
+                v.color_id || v.colorId || v.color?.id || v.color?._id
+              ),
               images: Array.isArray(v.images)
                 ? v.images
                 : typeof v.images === "string"
@@ -97,7 +110,9 @@ export default function ProductForm() {
                   ? v.sizes.map((s) => ({
                       size: s.size || "",
                       stock: s.stock !== undefined ? s.stock.toString() : "",
-                      outletId: s.outlet_id || s.outletId || "",
+                      outletId: toIdStr(
+                        s.outlet_id || s.outletId || s.outlet?.id || s.outlet?._id
+                      ),
                     }))
                   : [{ size: "", stock: "", outletId: "" }],
             }));
@@ -118,11 +133,11 @@ export default function ProductForm() {
   useEffect(() => {
     if (!isEditMode) {
       if (categories?.length > 0 && !categoryId) {
-        const firstCatId = categories[0].id || categories[0]._id;
+        const firstCatId = toIdStr(categories[0].id || categories[0]._id);
         if (firstCatId) setCategoryId(firstCatId);
       }
       if (brands?.length > 0 && !brandId) {
-        const firstBrandId = brands[0].id || brands[0]._id;
+        const firstBrandId = toIdStr(brands[0].id || brands[0]._id);
         if (firstBrandId) setBrandId(firstBrandId);
       }
     }
@@ -131,8 +146,10 @@ export default function ProductForm() {
   // Set default Color & Outlet for the initial variant in ADD MODE
   useEffect(() => {
     if (!isEditMode) {
-      const defaultColorId = colors[0]?.id || colors[0]?._id;
-      const defaultOutletId = outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id;
+      const defaultColorId = toIdStr(colors[0]?.id || colors[0]?._id);
+      const defaultOutletId = toIdStr(
+        outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id
+      );
 
       if (defaultColorId || defaultOutletId) {
         setVariants((prev) =>
@@ -154,12 +171,13 @@ export default function ProductForm() {
     }
   }, [colors, outlets, isEditMode]);
 
-  // Helper to get default outlet ID
-  const getDefaultOutletId = () => outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id || "";
+  // Helper to get default outlet ID (always a string)
+  const getDefaultOutletId = () =>
+    toIdStr(outlets[0]?.outlet_id || outlets[0]?.id || outlets[0]?._id);
 
   // Handler functions for Variants
   const handleAddVariant = () => {
-    const defaultColorId = colors[0]?.id || colors[0]?._id || "";
+    const defaultColorId = toIdStr(colors[0]?.id || colors[0]?._id);
     setVariants((prev) => [
       ...prev,
       {
@@ -177,7 +195,11 @@ export default function ProductForm() {
 
   const handleVariantChange = (varIdx, field, val) => {
     setVariants((prev) =>
-      prev.map((v, i) => (i === varIdx ? { ...v, [field]: val } : v))
+      prev.map((v, i) =>
+        i === varIdx
+          ? { ...v, [field]: field === "colorId" ? toIdStr(val) : val }
+          : v
+      )
     );
   };
 
@@ -309,7 +331,9 @@ export default function ProductForm() {
       prev.map((v, i) => {
         if (i !== varIdx) return v;
         const updatedSizes = v.sizes.map((s, sIdx) =>
-          sIdx === sizeIdx ? { ...s, [field]: val } : s
+          sIdx === sizeIdx
+            ? { ...s, [field]: field === "outletId" ? toIdStr(val) : val }
+            : s
         );
         return { ...v, sizes: updatedSizes };
       })
@@ -518,7 +542,7 @@ export default function ProductForm() {
                     </label>
                     <select
                       value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
+                      onChange={(e) => setCategoryId(toIdStr(e.target.value))}
                       className="select-field"
                       required
                     >
@@ -526,7 +550,10 @@ export default function ProductForm() {
                         Select Category
                       </option>
                       {categories.map((c) => (
-                        <option key={c.id || c._id} value={c.id || c._id}>
+                        <option
+                          key={c.id || c._id}
+                          value={toIdStr(c.id || c._id)}
+                        >
                           {c.name}
                         </option>
                       ))}
@@ -539,7 +566,7 @@ export default function ProductForm() {
                     </label>
                     <select
                       value={brandId}
-                      onChange={(e) => setBrandId(e.target.value)}
+                      onChange={(e) => setBrandId(toIdStr(e.target.value))}
                       className="select-field"
                       required
                     >
@@ -547,7 +574,10 @@ export default function ProductForm() {
                         Select Brand
                       </option>
                       {brands.map((b) => (
-                        <option key={b.id || b._id} value={b.id || b._id}>
+                        <option
+                          key={b.id || b._id}
+                          value={toIdStr(b.id || b._id)}
+                        >
                           {b.name}
                         </option>
                       ))}
@@ -630,7 +660,10 @@ export default function ProductForm() {
                         >
                           <option value="">Select Color</option>
                           {colors.map((c) => (
-                            <option key={c.id || c._id} value={c.id || c._id}>
+                            <option
+                              key={c.id || c._id}
+                              value={toIdStr(c.id || c._id)}
+                            >
                               {c.name}
                             </option>
                           ))}
@@ -641,7 +674,8 @@ export default function ProductForm() {
                             style={{
                               backgroundColor:
                                 colors.find(
-                                  (c) => (c.id || c._id) === variant.colorId
+                                  (c) =>
+                                    toIdStr(c.id || c._id) === variant.colorId
                                 )?.code || "#888",
                             }}
                           />
@@ -801,11 +835,11 @@ export default function ProductForm() {
                                       outlet.id ||
                                       outlet._id
                                     }
-                                    value={
+                                    value={toIdStr(
                                       outlet.outlet_id ||
-                                      outlet.id ||
-                                      outlet._id
-                                    }
+                                        outlet.id ||
+                                        outlet._id
+                                    )}
                                   >
                                     {outlet.name || outlet.outlet_name}
                                   </option>

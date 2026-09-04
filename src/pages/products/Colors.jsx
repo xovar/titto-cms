@@ -226,7 +226,7 @@ export default function Colors() {
             </div>
 
             {/* ⚡ স্ক্রলেবল কনটেইনার */}
-            <div className="max-h-[320px] overflow-y-auto overflow-x-auto relative">
+            <div className="max-h-80 overflow-y-auto overflow-x-auto relative">
               <table className="w-full text-sm border-collapse">
                 <thead className="sticky top-0 bg-background-light dark:bg-background-dark z-10">
                   <tr className="border-b border-border-light dark:border-border-dark">

@@ -10,6 +10,7 @@ import {
   clearSelectedOrder,
   clearOrderError,
 } from '../../store/slices/orderSlice';
+import { fetchProducts } from '../../store/slices/productSlice';
 
 import {
   ArrowLeft,
@@ -48,6 +49,9 @@ export default function OrderDetails() {
   // Redux State থেকে ডাটা নেওয়া
   const { selectedOrder, loading, updating, error } = useSelector((state) => state.orders);
 
+  // ⚡ Products Slice থেকে প্রোডাক্ট লিস্ট নিয়ে আসা (discount ভেরিফাই করার জন্য)
+  const { items: products } = useSelector((state) => state.products);
+
   const [status, setStatus] = useState('');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success'); // 'success' | 'error'
@@ -65,6 +69,39 @@ export default function OrderDetails() {
     // Handle different response structures
     return selectedOrder.data || selectedOrder.order || selectedOrder;
   }, [selectedOrder]);
+
+  // ⚡ product_id => discount info এর দ্রুত লুকআপ ম্যাপ তৈরি
+  // (order_items.discount ফাঁকা/ভুল থাকলেও আসল প্রোডাক্টের discount এখান থেকে পাওয়া যাবে)
+  const productDiscountMap = useMemo(() => {
+    const map = {};
+    (products || []).forEach((p) => {
+      const pid = p.id || p._id || p.product_id;
+      if (!pid) return;
+      map[pid] = {
+        discount: parseFloat(p.discount || 0),
+        discountType: p.discount_type || p.discountType || 'percent',
+      };
+    });
+    return map;
+  }, [products]);
+
+  // ⚡ প্রতিটা order item-এর জন্য প্রকৃত discount value ও type রেজলভ করা।
+  // প্রোডাক্টে discount পাওয়া গেলে সেটাই ব্যবহার হবে, না হলে order_item-এ
+  // যা সেভ আছে সেটা ফলব্যাক হিসেবে ব্যবহার হবে।
+  const resolveItemDiscount = useCallback((item, order) => {
+    const productId = item.product_id || item.productId;
+    const matchedProduct = productId ? productDiscountMap[productId] : null;
+
+    const discountVal = matchedProduct
+      ? matchedProduct.discount
+      : parseFloat(item.discount || 0);
+
+    const discountType = matchedProduct
+      ? matchedProduct.discountType
+      : (item.discount_type || item.discountType || order?.discount_type || order?.discountType || 'percent');
+
+    return { discountVal: discountVal > 0 ? discountVal : 0, discountType };
+  }, [productDiscountMap]);
 
   // FIX: subtotal and discountAmount used to be plain consts / a useMemo
   // declared AFTER the `if (loading) return` and `if (!order) return`
@@ -93,8 +130,11 @@ export default function OrderDetails() {
       return order.items.reduce((acc, item) => {
         const itemPrice = parseFloat(item.price || 0);
         const itemQty = parseFloat(item.quantity || item.qty || 1);
-        const itemDiscVal = parseFloat(item.discount || 0);
-        const type = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
+
+        // ⚡ product_id দিয়ে productSlice-এ আসল প্রোডাক্টের discount চেক
+        const { discountVal: itemDiscVal, discountType: type } = resolveItemDiscount(item, order);
+
+        if (!itemDiscVal || itemDiscVal <= 0) return acc;
 
         if (type === 'percent' || type === 'percentage') {
           return acc + ((itemPrice * itemDiscVal) / 100) * itemQty;
@@ -110,7 +150,7 @@ export default function OrderDetails() {
       return (subtotal * orderDiscVal) / 100;
     }
     return orderDiscVal;
-  }, [order, subtotal]);
+  }, [order, subtotal, resolveItemDiscount]);
 
   // Fetch order on mount
   useEffect(() => {
@@ -123,6 +163,13 @@ export default function OrderDetails() {
       dispatch(clearOrderError());
     };
   }, [dispatch, id]);
+
+  // ⚡ প্রোডাক্ট লিস্ট না থাকলে ফেচ করা (discount cross-check করার জন্য দরকার)
+  useEffect(() => {
+    if (!products || products.length === 0) {
+      dispatch(fetchProducts());
+    }
+  }, [dispatch, products]);
 
   // Set status when order loads
   useEffect(() => {
@@ -579,8 +626,9 @@ export default function OrderDetails() {
                     order.items.map((item, idx) => {
                       const itemQty = Number(item.quantity || item.qty || 1);
                       const itemPrice = parseFloat(item.price || item.product_price || 0);
-                      const itemDiscountVal = parseFloat(item.discount || 0);
-                      const itemDiscType = item.discount_type || item.discountType || order.discount_type || order.discountType || 'percent';
+
+                      // ⚡ product_id দিয়ে productSlice-এ আসল প্রোডাক্টের discount চেক
+                      const { discountVal: itemDiscountVal, discountType: itemDiscType } = resolveItemDiscount(item, order);
 
                       // Calculate unit discount
                       const unitDiscount = itemDiscType === 'percent' || itemDiscType === 'percentage'

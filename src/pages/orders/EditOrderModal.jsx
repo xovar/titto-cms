@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateOrder } from '../../store/slices/orderSlice';
+import { fetchProducts } from '../../store/slices/productSlice';
 import { X, Save, Trash2, Plus, AlertCircle } from 'lucide-react';
 
 export default function EditOrderModal({ isOpen, onClose, order }) {
   const dispatch = useDispatch();
   const { updating, error } = useSelector((state) => state.orders || {});
+
+  // ⚡ Products Slice থেকে প্রোডাক্ট লিস্ট নিয়ে আসা (discount প্রিফিল করার জন্য)
+  const { items: products } = useSelector((state) => state.products || {});
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -18,6 +22,27 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
     note: '',
     items: [],
   });
+
+  // ⚡ মডাল ওপেন হলে প্রোডাক্ট লিস্ট না থাকলে ফেচ করা
+  useEffect(() => {
+    if (isOpen && (!products || products.length === 0)) {
+      dispatch(fetchProducts());
+    }
+  }, [dispatch, isOpen, products]);
+
+  // ⚡ product_id => discount info এর দ্রুত লুকআপ ম্যাপ (initial prefill-এর জন্য)
+  const productDiscountMap = useMemo(() => {
+    const map = {};
+    (products || []).forEach((p) => {
+      const pid = p.id || p._id || p.product_id;
+      if (!pid) return;
+      map[pid] = {
+        discount: parseFloat(p.discount || 0),
+        discountType: p.discount_type || p.discountType || 'percent',
+      };
+    });
+    return map;
+  }, [products]);
 
   // 1️⃣ Sync local state when order changes or modal opens
   useEffect(() => {
@@ -32,24 +57,37 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
         deliveryCharge: parseFloat(order.deliveryCharge ?? order.delivery_charge ?? 0),
         note: order.note || '',
         items: Array.isArray(order.items) && order.items.length > 0
-          ? order.items.map((item) => ({
-              id: item.id || null,
-              productId: item.productId || item.product_id || item.id || `manual_${Date.now()}`,
-              variantId: item.variantId || item.variant_id || null,
-              name: item.name || item.product_name || item.title || '',
-              category: item.category || null,
-              color: item.color || null,
-              size: item.size || null,
-              price: parseFloat(item.price || 0),
-              quantity: parseInt(item.quantity || item.qty || 1, 10),
-              discount: parseFloat(item.discount || 0),
-              discountType: item.discount_type || item.discountType || 'percent',
-              image: item.image || null,
-            }))
+          ? order.items.map((item) => {
+              const productId = item.productId || item.product_id || item.id;
+
+              // ⚡ প্রোডাক্টে discount থাকলে সেটাই ইনিশিয়াল ভ্যালু হিসেবে ব্যবহার হবে
+              // (order_items-এ ভুল/ফাঁকা discount সেভ থাকলেও ঠিক ভ্যালু দিয়ে ওপেন হবে)।
+              // admin চাইলে এই ভ্যালু ম্যানুয়ালি বদলাতে পারবে — এটা শুধু প্রিফিল।
+              const matchedProduct = productId ? productDiscountMap[productId] : null;
+
+              return {
+                id: item.id || null,
+                productId: productId || `manual_${Date.now()}`,
+                variantId: item.variantId || item.variant_id || null,
+                name: item.name || item.product_name || item.title || '',
+                category: item.category || null,
+                color: item.color || null,
+                size: item.size || null,
+                price: parseFloat(item.price || 0),
+                quantity: parseInt(item.quantity || item.qty || 1, 10),
+                discount: matchedProduct
+                  ? matchedProduct.discount
+                  : parseFloat(item.discount || 0),
+                discountType: matchedProduct
+                  ? matchedProduct.discountType
+                  : (item.discount_type || item.discountType || 'percent'),
+                image: item.image || null,
+              };
+            })
           : [],
       });
     }
-  }, [order, isOpen]);
+  }, [order, isOpen, productDiscountMap]);
 
   // 2️⃣ Handle ESC key press to close modal
   useEffect(() => {
