@@ -294,19 +294,19 @@ export default function PosSystem() {
               (item) => `
             <div class="flex" style="margin-bottom: 4px;">
               <span class="item-name"><strong>${item.name}</strong> <small>x${item.qty}</small></span>
-              <span class="item-price">৳${(Number(item.price) * item.qty).toFixed(2)}</span>
+              <span class="item-price">Tk ${(Number(item.price) * item.qty).toFixed(2)}</span>
             </div>
           `,
             )
             .join("")}
 
           <div class="line"></div>
-          <div class="flex"><span>Subtotal:</span><span>৳${subtotal.toFixed(2)}</span></div>
-          <div class="flex"><span>Discount (${discountPercent}%):</span><span>-৳${discountAmount.toFixed(2)}</span></div>
-          <div class="flex"><span>Tax (${taxPercent}%):</span><span>৳${taxAmount.toFixed(2)}</span></div>
+          <div class="flex"><span>Subtotal:</span><span>Tk ${subtotal.toFixed(2)}</span></div>
+          <div class="flex"><span>Discount (${discountPercent}%):</span><span>-Tk ${discountAmount.toFixed(2)}</span></div>
+          <div class="flex"><span>Tax (${taxPercent}%):</span><span>Tk ${taxAmount.toFixed(2)}</span></div>
           
           <div class="line"></div>
-          <div class="flex bold"><span>TOTAL:</span><span>৳${grandTotal.toFixed(2)}</span></div>
+          <div class="flex bold"><span>TOTAL:</span><span>Tk ${grandTotal.toFixed(2)}</span></div>
           <div class="flex"><span>Payment:</span><strong>${paymentMethod.toUpperCase()}</strong></div>
           
           <div class="line"></div>

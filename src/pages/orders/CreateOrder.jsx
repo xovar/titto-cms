@@ -72,7 +72,7 @@ const SearchableProductSelect = ({
               : selectedProduct
               ? `${selectedProduct.name} ${
                   selectedProduct.brand?.name ? `(${selectedProduct.brand.name})` : ''
-                } - ৳${selectedProduct.price}`
+                } - Tk ${selectedProduct.price}`
               : searchTerm
           }
           onFocus={() => {
@@ -116,7 +116,7 @@ const SearchableProductSelect = ({
                 >
                   <div className="flex justify-between items-center gap-2">
                     <span className="font-semibold truncate">{prod.name}</span>
-                    <span className="font-bold text-accent-brand shrink-0">৳{prod.price}</span>
+                    <span className="font-bold text-accent-brand shrink-0">Tk {prod.price}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] text-text-secondary-light dark:text-text-secondary-dark mt-1">
                     <span>Brand: {prod.brand?.name || 'N/A'}</span>
@@ -733,7 +733,7 @@ export default function CreateOrder() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                         <div>
                           <label className="block text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">
-                            Price (৳)
+                            Price (Tk )
                           </label>
                           <input
                             type="number"
@@ -761,7 +761,7 @@ export default function CreateOrder() {
 
                         <div>
                           <label className="block text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">
-                            Discount (৳)
+                            Discount (Tk )
                           </label>
                           <input
                             type="number"
@@ -803,13 +803,13 @@ export default function CreateOrder() {
                 <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark">
                   <span>Subtotal:</span>
                   <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">
-                    ৳{subtotal.toLocaleString('en-BD')}
+                    Tk {subtotal.toLocaleString('en-BD')}
                   </span>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">
-                    Delivery Charge (৳)
+                    Delivery Charge (Tk )
                   </label>
                   <input
                     type="number"
@@ -825,7 +825,7 @@ export default function CreateOrder() {
                     Grand Total:
                   </span>
                   <span className="text-accent-brand">
-                    ৳{grandTotal.toLocaleString('en-BD')}
+                    Tk {grandTotal.toLocaleString('en-BD')}
                   </span>
                 </div>
               </div>

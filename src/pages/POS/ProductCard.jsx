@@ -210,11 +210,11 @@ export default function ProductCard({ product = {}, addToCart }) {
       <div className="pt-2.5 mt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
         <div>
           <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">
-            ৳{finalPrice.toFixed(0)}
+            Tk {finalPrice.toFixed(0)}
           </span>
           {discount > 0 && (
             <span className="text-xs text-gray-400 line-through ml-1.5 font-medium">
-              ৳{price.toFixed(0)}
+              Tk {price.toFixed(0)}
             </span>
           )}
         </div>

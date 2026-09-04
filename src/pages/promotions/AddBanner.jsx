@@ -388,7 +388,7 @@ export default function AddBanner() {
                             </span>
                             {prod.price && (
                               <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark ml-2">
-                                ৳{prod.price}
+                                Tk {prod.price}
                               </span>
                             )}
                           </div>

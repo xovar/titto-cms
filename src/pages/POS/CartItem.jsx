@@ -6,7 +6,7 @@ export default function CartItem({ item, updateQty, removeFromCart }) {
     <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
       <div className="flex-1 min-w-0">
         <h4 className="font-semibold text-sm truncate">{item.name}</h4>
-        <p className="text-xs text-gray-500">৳{item.price} each</p>
+        <p className="text-xs text-gray-500">Tk {item.price} each</p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -26,7 +26,7 @@ export default function CartItem({ item, updateQty, removeFromCart }) {
       </div>
 
       <div className="text-right">
-        <p className="font-bold text-sm">৳{Number(item.price) * item.qty}</p>
+        <p className="font-bold text-sm">Tk {Number(item.price) * item.qty}</p>
         <button
           onClick={() => removeFromCart(item.id)}
           className="text-red-400 hover:text-red-600 p-1"

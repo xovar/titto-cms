@@ -299,7 +299,7 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
                     <tr>
                       <th className="p-3">Product Title</th>
                       <th className="p-3 text-center w-20">Qty</th>
-                      <th className="p-3 text-right w-24">Price (৳)</th>
+                      <th className="p-3 text-right w-24">Price (Tk )</th>
                       <th className="p-3 text-right w-24">Disc (%)</th>
                       <th className="p-3 text-center w-12">Action</th>
                     </tr>
@@ -379,7 +379,7 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark">
                 <span>Subtotal:</span>
                 <span className="font-medium text-text-primary-light dark:text-text-primary-dark">
-                  ৳{calculatedSubtotal.toLocaleString('en-BD')}
+                  Tk {calculatedSubtotal.toLocaleString('en-BD')}
                 </span>
               </div>
 
@@ -387,7 +387,7 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                   <span>Discount:</span>
                   <span className="font-medium">
-                    -৳{calculatedDiscount.toLocaleString('en-BD')}
+                    -Tk {calculatedDiscount.toLocaleString('en-BD')}
                   </span>
                 </div>
               )}
@@ -395,7 +395,7 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
               <div className="flex justify-between items-center text-text-secondary-light dark:text-text-secondary-dark">
                 <span>Delivery Charge:</span>
                 <div className="flex items-center gap-1">
-                  <span>৳</span>
+                  <span>Tk </span>
                   <input
                     type="number"
                     min="0"
@@ -410,7 +410,7 @@ export default function EditOrderModal({ isOpen, onClose, order }) {
               <div className="flex justify-between font-bold text-base pt-2 border-t border-border-light dark:border-border-dark text-text-primary-light dark:text-text-primary-dark">
                 <span>Grand Total:</span>
                 <span className="text-accent-brand">
-                  ৳{grandTotal.toLocaleString('en-BD')}
+                  Tk {grandTotal.toLocaleString('en-BD')}
                 </span>
               </div>
             </div>

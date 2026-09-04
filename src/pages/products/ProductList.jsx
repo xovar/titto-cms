@@ -146,7 +146,7 @@ function BarcodeModal({ product, onClose }) {
                   <BarcodeSVG value={item.sku} />
                 </div>
                 <p className="price text-xs font-bold border-t border-gray-200 pt-1 w-full">
-                  ৳{item.price}
+                  Tk {item.price}
                 </p>
               </div>
             ))}
@@ -314,11 +314,11 @@ function ProductCard({ product, onDelete }) {
         <div className="flex items-end justify-between">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
-              ৳{discountedPrice}
+              Tk {discountedPrice}
             </span>
             {rawDiscount > 0 && (
               <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark line-through">
-                ৳{rawPrice}
+                Tk {rawPrice}
               </span>
             )}
           </div>

@@ -140,7 +140,7 @@ export default function RecentPosOrders({ orders = [] }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-text-primary-light dark:text-text-primary-dark">
-                    ৳{Number(order.amount || 0).toLocaleString()}
+                    Tk {Number(order.amount || 0).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right text-text-secondary-light dark:text-text-secondary-dark">
                     {formatDate(order.createdAt)}

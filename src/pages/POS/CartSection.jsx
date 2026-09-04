@@ -76,7 +76,7 @@ export default function CartSection({
       <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 space-y-2 text-sm">
         <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Subtotal</span>
-          <span>৳{subtotal.toFixed(2)}</span>
+          <span>Tk {subtotal.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
@@ -115,13 +115,13 @@ export default function CartSection({
 
         <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Tax Amount</span>
-          <span>৳{taxAmount.toFixed(2)}</span>
+          <span>Tk {taxAmount.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700 text-base font-bold">
           <span>Total Payable</span>
           <span className="text-indigo-600 dark:text-indigo-400">
-            ৳{grandTotal.toFixed(2)}
+            Tk {grandTotal.toFixed(2)}
           </span>
         </div>
 
@@ -164,7 +164,7 @@ export default function CartSection({
             }}
             className="flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-all shadow-md active:scale-[0.98]"
           >
-            Pay ৳{grandTotal.toFixed(0)}
+            Pay Tk {grandTotal.toFixed(0)}
           </button>
         </div>
       </div>

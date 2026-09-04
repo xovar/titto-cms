@@ -607,7 +607,7 @@ export default function OrderDetails() {
                               )}
                               {itemDiscountVal > 0 && (
                                 <span className="block text-xs text-emerald-600 dark:text-emerald-400 print:text-emerald-700 font-normal mt-1">
-                                  (Discount: {itemDiscType === 'flat' ? `৳${itemDiscountVal}` : `${itemDiscountVal}%`})
+                                  (Discount: {itemDiscType === 'flat' ? `Tk ${itemDiscountVal}` : `${itemDiscountVal}%`})
                                 </span>
                               )}
                             </div>
@@ -620,14 +620,14 @@ export default function OrderDetails() {
                             {itemDiscountVal > 0 ? (
                               <div>
                                 <span className="line-through text-xs text-gray-400 block font-normal">
-                                  ৳{itemPrice.toLocaleString('en-BD')}
+                                  Tk {itemPrice.toLocaleString('en-BD')}
                                 </span>
                                 <span className="font-medium">
-                                  ৳{discountedUnitPrice.toLocaleString('en-BD')}
+                                  Tk {discountedUnitPrice.toLocaleString('en-BD')}
                                 </span>
                               </div>
                             ) : (
-                              `৳${itemPrice.toLocaleString('en-BD')}`
+                              `Tk ${itemPrice.toLocaleString('en-BD')}`
                             )}
                           </td>
 
@@ -635,12 +635,12 @@ export default function OrderDetails() {
                             {itemDiscountVal > 0 ? (
                               <div>
                                 <span className="line-through text-xs text-gray-400 block font-normal">
-                                  ৳{itemOriginalTotal.toLocaleString('en-BD')}
+                                  Tk {itemOriginalTotal.toLocaleString('en-BD')}
                                 </span>
-                                <span>৳{itemNetTotal.toLocaleString('en-BD')}</span>
+                                <span>Tk {itemNetTotal.toLocaleString('en-BD')}</span>
                               </div>
                             ) : (
-                              `৳${itemOriginalTotal.toLocaleString('en-BD')}`
+                              `Tk ${itemOriginalTotal.toLocaleString('en-BD')}`
                             )}
                           </td>
                         </tr>
@@ -653,10 +653,10 @@ export default function OrderDetails() {
                       </td>
                       <td className="px-5 py-3.5 print:px-2 print:py-2 text-center print:text-black">1</td>
                       <td className="px-5 py-3.5 print:px-2 print:py-2 text-right print:text-black">
-                        ৳{subtotal.toLocaleString('en-BD')}
+                        Tk {subtotal.toLocaleString('en-BD')}
                       </td>
                       <td className="px-5 py-3.5 print:px-2 print:py-2 text-right font-semibold print:text-black">
-                        ৳{subtotal.toLocaleString('en-BD')}
+                        Tk {subtotal.toLocaleString('en-BD')}
                       </td>
                     </tr>
                   )}
@@ -668,22 +668,22 @@ export default function OrderDetails() {
             <div className="p-5 bg-background-light/50 dark:bg-background-dark/50 border-t border-border-light dark:border-border-dark space-y-2 text-sm print:bg-transparent print:p-0 print:pt-4 print:border-t print:border-gray-300">
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark print:text-gray-700">
                 <span>Subtotal:</span>
-                <span>৳{subtotal.toLocaleString('en-BD')}</span>
+                <span>Tk {subtotal.toLocaleString('en-BD')}</span>
               </div>
               <div className="flex justify-between text-text-secondary-light dark:text-text-secondary-dark print:text-gray-700">
                 <span>Delivery Charge:</span>
-                <span>৳{deliveryCharge.toLocaleString('en-BD')}</span>
+                <span>Tk {deliveryCharge.toLocaleString('en-BD')}</span>
               </div>
               {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400 print:text-emerald-700 font-medium">
                   <span>Discount:</span>
-                  <span>-৳{discountAmount.toLocaleString('en-BD')}</span>
+                  <span>-Tk {discountAmount.toLocaleString('en-BD')}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base text-text-primary-light dark:text-text-primary-dark print:text-black pt-2 border-t border-border-light dark:border-border-dark print:border-gray-300">
                 <span>Grand Total:</span>
                 <span className="text-accent-brand print:text-black">
-                  ৳{grandTotal.toLocaleString('en-BD')}
+                  Tk {grandTotal.toLocaleString('en-BD')}
                 </span>
               </div>
             </div>

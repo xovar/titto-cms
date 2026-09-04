@@ -295,10 +295,10 @@ export default function OrderList() {
                         </div>
                       </td>
                       <td className="px-5 py-4 font-semibold text-text-primary-light dark:text-text-primary-dark">
-                        ৳{totalPrice.toLocaleString('en-BD')}
+                        Tk {totalPrice.toLocaleString('en-BD')}
                         {discountAmount > 0 && (
                           <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
-                            (-৳{discountAmount.toLocaleString('en-BD')} off)
+                            (-Tk {discountAmount.toLocaleString('en-BD')} off)
                           </span>
                         )}
                       </td>
