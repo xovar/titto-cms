@@ -20,6 +20,7 @@ import {
   Store,
   MonitorCheck,
   UserCheck, // 👈 Manager/Staff Management-এর জন্য Icon
+  Receipt, // 👈 POS Sales-এর জন্য Icon
 } from "lucide-react";
 import logo from "../../assets/titto.logo.png";
 
@@ -122,6 +123,19 @@ export default function Sidebar({ isOpen, onClose }) {
           >
             <MonitorCheck size={20} />
             <span>POS System</span>
+          </NavLink>
+
+          {/* 🧾 POS Sales link — শুধু in-store (channel: 'pos') sale-এর
+              লিস্ট দেখানোর জন্য, কোনো dropdown ছাড়াই সরাসরি লিংক */}
+          <NavLink
+            to="/pos-sales"
+            className={({ isActive }) =>
+              `sidebar-link ${isActive ? "active" : ""}`
+            }
+            onClick={onClose}
+          >
+            <Receipt size={20} />
+            <span>POS Sales</span>
           </NavLink>
 
           {/* 📦 Products accordion */}

@@ -13,12 +13,16 @@ import Brands from "./pages/products/Brands";
 import Outlets from "./pages/outlets/Outlets"; 
 
 // 💻 POS Page (নতুন যুক্ত করা হলো)
-import PosSystem from "./pages/POS/PosSystem"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
+import PosSystem from "./pages/POS/PosSystem"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
 
 // 🛍️ Order Pages
 import OrderList from "./pages/orders/OrderList";
 import CreateOrder from "./pages/orders/CreateOrder";
 import OrderDetails from "./pages/orders/OrderDetails";
+
+// 🧾 POS Sales Page (নতুন যুক্ত করা হলো) — শুধু channel: 'pos' অর্ডার
+// দেখানোর জন্য আলাদা লিস্ট পেজ, OrderList.jsx-এর পাশাপাশি
+import PosOrderList from "./pages/POS/Posorderlist"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
 
 // Auth & LockScreen
 import LockScreen from "./pages/lockscreen/LockScreen";
@@ -44,6 +48,9 @@ export default function App() {
 
           {/* 💻 POS Route */}
           <Route path="pos" element={<PosSystem />} />
+
+          {/* 🧾 POS Sales Route — Sidebar.jsx-এর "POS Sales" লিংক এখানেই আসে */}
+          <Route path="pos-sales" element={<PosOrderList />} />
 
           {/* 📦 Product Routes */}
           <Route path="products" element={<ProductList />} />
