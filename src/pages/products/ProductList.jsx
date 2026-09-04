@@ -6,8 +6,9 @@ import { Pencil, Trash2, Eye, Tag, ShoppingBag, Plus, Search, Filter, RefreshCw,
 import { toast } from "react-toastify";
 import JsBarcode from 'jsbarcode';
 import { fetchProducts, deleteProduct, fetchCategories, fetchBrands } from '../../store/slices/productSlice';
+import { fetchOutlets } from '../../store/slices/outletSlice'; // ⚡ Outlet Slice Import
 
-// ⚡ বারকোড SVG রেন্ডার করার জন্য আলাদা সেফ কম্পোনেন্ট
+// ⚡ বারকোড SVG রেন্ডারার
 function BarcodeSVG({ value }) {
   const svgRef = useRef(null);
 
@@ -17,10 +18,10 @@ function BarcodeSVG({ value }) {
         JsBarcode(svgRef.current, String(value), {
           format: "CODE128",
           width: 1.5,
-          height: 40,
+          height: 35,
           displayValue: true,
-          fontSize: 11,
-          margin: 4
+          fontSize: 10,
+          margin: 2
         });
       } catch (e) {
         console.error("Failed to generate barcode:", e);
@@ -31,9 +32,23 @@ function BarcodeSVG({ value }) {
   return <svg ref={svgRef}></svg>;
 }
 
-// ⚡ বারকোড জেনারেটর এবং স্টিকার প্রিন্ট মোডাল (Portal ভিত্তিক)
-function BarcodeModal({ product, onClose }) {
+// ⚡ বারকোড জেনারেটর ও ప్రిিন্ট মোডাল
+function BarcodeModal({ product, outlets, onClose }) {
   const printRef = useRef(null);
+
+  // ⚡ আউটলেটের ডাইনামিক নাম বের করার লজিক
+  const getOutletName = (itemOutletId) => {
+    if (!outlets || outlets.length === 0) return "My Store";
+    
+    // ১. ভ্যারিয়েন্টের নির্দিষ্ট outlet_id থাকলে সেটি খুঁজবে
+    if (itemOutletId) {
+      const match = outlets.find((o) => String(o.outlet_id) === String(itemOutletId));
+      if (match) return match.outlet_name;
+    }
+    
+    // ২. ডিফল্টভাবে প্রথম আউটলেটের নাম দেখাবে
+    return outlets[0]?.outlet_name || "My Store";
+  };
 
   const skuList = useMemo(() => {
     const rawPrice = parseFloat(product?.price) || 0;
@@ -45,7 +60,8 @@ function BarcodeModal({ product, onClose }) {
         sku: product?.sku || `SKU-${product?.id || product?._id || 'PROD'}`,
         variant: '',
         size: '',
-        price: finalPrice
+        price: finalPrice,
+        outlet_id: product?.outlet_id || null
       }];
     }
 
@@ -58,6 +74,7 @@ function BarcodeModal({ product, onClose }) {
             variant: v.color?.name || '',
             size: s.size,
             price: finalPrice,
+            outlet_id: s.outlet_id || v.outlet_id || product.outlet_id || null
           });
         });
       } else {
@@ -66,6 +83,7 @@ function BarcodeModal({ product, onClose }) {
           variant: v.color?.name || '',
           size: '',
           price: finalPrice,
+          outlet_id: v.outlet_id || product.outlet_id || null
         });
       }
     });
@@ -89,15 +107,16 @@ function BarcodeModal({ product, onClose }) {
               .sticker-grid { display: flex; flex-wrap: wrap; gap: 12px; }
               .sticker-card {
                 border: 1px dashed #999;
-                padding: 8px;
+                padding: 6px;
                 width: 180px;
                 text-align: center;
                 box-sizing: border-box;
                 page-break-inside: avoid;
               }
-              .title { font-size: 11px; font-weight: bold; margin-bottom: 2px; }
-              .sub-info { font-size: 10px; color: #555; margin-bottom: 2px; }
-              .price { font-size: 12px; font-weight: bold; margin-top: 2px; }
+              .outlet-name { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+              .title { font-size: 10px; font-weight: 600; margin-bottom: 2px; }
+              .sub-info { font-size: 9px; color: #555; margin-bottom: 2px; }
+              .price { font-size: 11px; font-weight: bold; margin-top: 2px; }
               svg { max-width: 100%; height: auto; }
             }
           </style>
@@ -136,7 +155,11 @@ function BarcodeModal({ product, onClose }) {
           <div ref={printRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {skuList.map((item, idx) => (
               <div key={idx} className="sticker-card bg-white text-black p-3 rounded-md border border-gray-300 shadow-sm flex flex-col items-center justify-between text-center">
-                <p className="title text-xs font-bold line-clamp-1 w-full">{product?.name}</p>
+                {/* ⚡ Redux থেকে আসা ডাইনামিক আউটলেটের নাম */}
+                <p className="outlet-name text-xs font-black uppercase tracking-wide border-b border-gray-200 pb-1 mb-1 w-full text-black">
+                  {getOutletName(item.outlet_id)}
+                </p>
+                <p className="title text-[11px] font-semibold line-clamp-1 w-full">{product?.name}</p>
                 {(item.variant || item.size) && (
                   <p className="sub-info text-[10px] text-gray-600 font-medium">
                     {item.variant} {item.size ? `| Size: ${item.size}` : ''}
@@ -169,7 +192,7 @@ function BarcodeModal({ product, onClose }) {
   return createPortal(modalUI, document.body);
 }
 
-function ProductCard({ product, onDelete }) {
+function ProductCard({ product, outlets, onDelete }) {
   const navigate = useNavigate();
 
   const [activeVariantIndex, setActiveVariantIndex] = useState(0);
@@ -395,7 +418,7 @@ function ProductCard({ product, onDelete }) {
 
       {/* Barcode Print Modal */}
       {showBarcode && (
-        <BarcodeModal product={product} onClose={() => setShowBarcode(false)} />
+        <BarcodeModal product={product} outlets={outlets} onClose={() => setShowBarcode(false)} />
       )}
 
       {/* Delete confirmation modal */}
@@ -437,6 +460,7 @@ export default function ProductList() {
   const items = useSelector((state) => state.products.items || []);
   const categories = useSelector((state) => state.products.categories || []);
   const brands = useSelector((state) => state.products.brands || []);
+  const outlets = useSelector((state) => state.outlets?.items || []); // ⚡ Redux Store থেকে Outlets ডাটা আনা
   const isProductLoading = useSelector((state) => state.products.loading?.products);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -449,6 +473,7 @@ export default function ProductList() {
     dispatch(fetchProducts());
     dispatch(fetchCategories());
     dispatch(fetchBrands());
+    dispatch(fetchOutlets()); // ⚡ Outlets ডাটা ফেচ করা
   }, [dispatch]);
 
   const handleDelete = async (id, name) => {
@@ -461,7 +486,7 @@ export default function ProductList() {
   };
 
   const handleResetFilters = () => {
-    SearchTerm('');
+    setSearchTerm('');
     setSelectedCategory('all');
     setSelectedBrand('all');
     setStockFilter('all');
@@ -623,7 +648,7 @@ export default function ProductList() {
       {/* Product Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredProducts.map((product) => (
-          <ProductCard key={product.id || product._id} product={product} onDelete={handleDelete} />
+          <ProductCard key={product.id || product._id} product={product} outlets={outlets} onDelete={handleDelete} />
         ))}
       </div>
 
