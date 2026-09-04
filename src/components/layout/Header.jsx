@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sun, Moon, Menu, User, LogOut } from 'lucide-react';
 import { toggleTheme } from '../../store/slices/themeSlice';
-import { auth } from '../../config/firebase'; // 👈 আপনার ফায়ারবেস কনফিগ ফাইল পাথ নিশ্চিত করুন
+import { auth } from '../../config/firebase';
 import { signOut } from 'firebase/auth';
 
 const routeLabels = {
@@ -21,13 +21,13 @@ export default function Header({ onMenuToggle }) {
   const { darkMode } = useSelector((state) => state.theme);
   const location = useLocation();
 
-  // ⚡ Dropdown State & Ref
+  // Dropdown State & Ref
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const breadcrumbs = routeLabels[location.pathname] || ['Dashboard'];
 
-  // ⚡ ড্রপডাউনের বাইরে ক্লিক করলে ড্রপডাউন বন্ধ করার লজিক
+  // Outside Click Handler
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -38,27 +38,29 @@ export default function Header({ onMenuToggle }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ⚡ Logout Handler Function
+  // Logout Handler Function
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Firebase Logout
-      localStorage.clear();  // Local storage clear
+      await signOut(auth);
+      localStorage.clear();
       sessionStorage.clear();
       setIsDropdownOpen(false);
-      navigate('/login');    // Redirect to login page
+      navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   return (
-    <header className="sticky print:hidden top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark">
-      {/* Left: hamburger + breadcrumbs */}
+    /* ⚡ z-index কমিয়ে z-20 করা হয়েছে যেন Modal-এর z-[99999] এর নিচে চলে যায় */
+    <header className="sticky print:hidden top-0 z-20 h-16 flex items-center justify-between px-4 sm:px-6 bg-surface-light/90 dark:bg-surface-dark/90 backdrop-blur-md border-b border-border-light dark:border-border-dark transition-all">
+      
+      {/* Left: Hamburger + Breadcrumbs */}
       <div className="flex items-center gap-3">
         <button
           id="menu-toggle"
           onClick={onMenuToggle}
-          className="lg:hidden p-2 rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark transition-colors"
+          className="lg:hidden p-2 rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark transition-colors cursor-pointer"
         >
           <Menu size={20} />
         </button>
@@ -83,19 +85,8 @@ export default function Header({ onMenuToggle }) {
         </nav>
       </div>
 
-      {/* Right: dark mode + user profile dropdown */}
+      {/* Right: User Profile Dropdown */}
       <div className="flex items-center gap-3">
-        {/* for later version */}
-        {/* <button
-          id="dark-mode-toggle"
-          onClick={() => dispatch(toggleTheme())}
-          className="p-2 rounded-lg hover:bg-background-light dark:hover:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark transition-colors"
-          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button> */}
-
-        {/* ⚡ User Profile Section with Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -114,9 +105,9 @@ export default function Header({ onMenuToggle }) {
             </div>
           </button>
 
-          {/* ⚡ Dropdown Menu */}
+          {/* Dropdown Menu */}
           {isDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-surface-light dark:bg-surface-dark rounded-xl shadow-lg border border-border-light dark:border-border-dark py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+            <div className="absolute right-0 mt-2 w-48 bg-surface-light dark:bg-surface-dark rounded-xl shadow-lg border border-border-light dark:border-border-dark py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
               <div className="px-4 py-2 border-b border-border-light dark:border-border-dark sm:hidden">
                 <p className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">
                   Admin User

@@ -12,17 +12,19 @@ import Brands from "./pages/products/Brands";
 // 🏬 Outlet Page
 import Outlets from "./pages/outlets/Outlets"; 
 
-// 💻 POS Page (নতুন যুক্ত করা হলো)
-import PosSystem from "./pages/POS/PosSystem"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
+// 💻 POS Page
+import PosSystem from "./pages/POS/PosSystem"; 
 
 // 🛍️ Order Pages
 import OrderList from "./pages/orders/OrderList";
 import CreateOrder from "./pages/orders/CreateOrder";
 import OrderDetails from "./pages/orders/OrderDetails";
 
-// 🧾 POS Sales Page (নতুন যুক্ত করা হলো) — শুধু channel: 'pos' অর্ডার
-// দেখানোর জন্য আলাদা লিস্ট পেজ, OrderList.jsx-এর পাশাপাশি
-import PosOrderList from "./pages/POS/Posorderlist"; // 👈 আপনার ফাইলের পাথ অনুযায়ী ঠিক করে নিন
+// 🧾 POS Sales Page
+import PosOrderList from "./pages/POS/Posorderlist";
+
+// 👤 Customer Page (নতুন ইম্পোর্ট)
+import Customers from "./pages/customers/Customers"; // 👈 আপনার Customers ফাইলের সঠিক পাথ অনুযায়ী চেক করুন
 
 // Auth & LockScreen
 import LockScreen from "./pages/lockscreen/LockScreen";
@@ -49,8 +51,11 @@ export default function App() {
           {/* 💻 POS Route */}
           <Route path="pos" element={<PosSystem />} />
 
-          {/* 🧾 POS Sales Route — Sidebar.jsx-এর "POS Sales" লিংক এখানেই আসে */}
+          {/* 🧾 POS Sales Route */}
           <Route path="pos-sales" element={<PosOrderList />} />
+
+          {/* 👤 Customer Route (Sidebar.jsx-এর /customers লিংকের জন্য) */}
+          <Route path="customers" element={<Customers />} />
 
           {/* 📦 Product Routes */}
           <Route path="products" element={<ProductList />} />
@@ -74,7 +79,7 @@ export default function App() {
           <Route path="promotions/edit/:id" element={<EditBanner />} />
 
           {/* Manager */}
-          <Route path="/managers" element={<Managers/>}/>
+          <Route path="managers" element={<Managers />} />
         </Route>
       </Route>
 
